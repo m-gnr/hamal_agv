@@ -21,8 +21,18 @@ Otonom forklift robotu projesi. ROS2 Humble tabanlı, Raspberry Pi 5 üzerinde �
 git clone https://github.com/...
 cd hamal_agv
 bash scripts/setup_ros2.sh
-bash scripts/build.sh
+bash scripts/aliases.sh
 ```
+
+Kurulum sonrası terminali yeniden başlat.
+
+## Kullanım
+
+| Komut | Açıklama |
+|---|---|
+| `cbuild` | Workspace'i derler ve source eder |
+| `cdev` | Geliştirme container'ını başlatır (Mac & Linux) |
+| `crobot` | Robot container'ını başlatır (sadece Pi'de) |
 
 ## Donanım
 
