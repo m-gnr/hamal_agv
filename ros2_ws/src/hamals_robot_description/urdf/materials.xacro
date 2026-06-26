@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="hamals_materials" params="config">
+
+    <material name="${config['materials']['base']['name']}">
+      <color rgba="${' '.join([str(x) for x in config['materials']['base']['color']])}"/>
+    </material>
+
+    <material name="${config['materials']['wheels']['name']}">
+      <color rgba="${' '.join([str(x) for x in config['materials']['wheels']['color']])}"/>
+    </material>
+
+    <material name="${config['materials']['caster']['name']}">
+      <color rgba="${' '.join([str(x) for x in config['materials']['caster']['color']])}"/>
+    </material>
+
+    <material name="${config['materials']['lidar_mount']['name']}">
+      <color rgba="${' '.join([str(x) for x in config['materials']['lidar_mount']['color']])}"/>
+    </material>
+
+    <material name="${config['materials']['lidar']['name']}">
+      <color rgba="${' '.join([str(x) for x in config['materials']['lidar']['color']])}"/>
+    </material>
+
+    <material name="${config['materials']['forklift_mast']['name']}">
+      <color rgba="${' '.join([str(x) for x in config['materials']['forklift_mast']['color']])}"/>
+    </material>
+
+    <material name="${config['materials']['fork_carriage']['name']}">
+      <color rgba="${' '.join([str(x) for x in config['materials']['fork_carriage']['color']])}"/>
+    </material>
+
+    <material name="${config['materials']['forks']['name']}">
+      <color rgba="${' '.join([str(x) for x in config['materials']['forks']['color']])}"/>
+    </material>
+
+  </xacro:macro>
+
+</robot>

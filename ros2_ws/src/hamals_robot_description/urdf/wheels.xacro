@@ -1,0 +1,97 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="hamals_wheels" params="config">
+
+    <!-- Sol ana sürüş tekeri -->
+    <joint name="${config['wheels']['left_drive']['joint']['name']}" type="${config['wheels']['left_drive']['joint']['type']}">
+      <parent link="${config['wheels']['left_drive']['joint']['parent']}"/>
+      <child link="${config['wheels']['left_drive']['joint']['child']}"/>
+      <origin
+        xyz="${config['wheels']['left_drive']['origin']['xyz'][0]} ${config['wheels']['left_drive']['origin']['xyz'][1]} ${config['wheels']['left_drive']['origin']['xyz'][2]}"
+        rpy="${config['wheels']['left_drive']['origin']['rpy'][0]} ${config['wheels']['left_drive']['origin']['rpy'][1]} ${config['wheels']['left_drive']['origin']['rpy'][2]}"/>
+      <axis
+        xyz="${config['wheels']['left_drive']['joint']['axis'][0]} ${config['wheels']['left_drive']['joint']['axis'][1]} ${config['wheels']['left_drive']['joint']['axis'][2]}"/>
+    </joint>
+
+    <link name="${config['robot']['frames']['left_drive_wheel_link']}">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <cylinder
+            radius="${config['wheels']['left_drive']['radius']}"
+            length="${config['wheels']['left_drive']['width']}"/>
+        </geometry>
+        <material name="${config['materials']['wheels']['name']}"/>
+      </visual>
+
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <cylinder
+            radius="${config['wheels']['left_drive']['radius']}"
+            length="${config['wheels']['left_drive']['width']}"/>
+        </geometry>
+      </collision>
+
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="${config['inertial']['wheel']['mass']}"/>
+        <inertia
+          ixx="${config['inertial']['wheel']['ixx']}"
+          ixy="${config['inertial']['wheel']['ixy']}"
+          ixz="${config['inertial']['wheel']['ixz']}"
+          iyy="${config['inertial']['wheel']['iyy']}"
+          iyz="${config['inertial']['wheel']['iyz']}"
+          izz="${config['inertial']['wheel']['izz']}"/>
+      </inertial>
+    </link>
+
+
+    <!-- Sağ ana sürüş tekeri -->
+    <joint name="${config['wheels']['right_drive']['joint']['name']}" type="${config['wheels']['right_drive']['joint']['type']}">
+      <parent link="${config['wheels']['right_drive']['joint']['parent']}"/>
+      <child link="${config['wheels']['right_drive']['joint']['child']}"/>
+      <origin
+        xyz="${config['wheels']['right_drive']['origin']['xyz'][0]} ${config['wheels']['right_drive']['origin']['xyz'][1]} ${config['wheels']['right_drive']['origin']['xyz'][2]}"
+        rpy="${config['wheels']['right_drive']['origin']['rpy'][0]} ${config['wheels']['right_drive']['origin']['rpy'][1]} ${config['wheels']['right_drive']['origin']['rpy'][2]}"/>
+      <axis
+        xyz="${config['wheels']['right_drive']['joint']['axis'][0]} ${config['wheels']['right_drive']['joint']['axis'][1]} ${config['wheels']['right_drive']['joint']['axis'][2]}"/>
+    </joint>
+
+    <link name="${config['robot']['frames']['right_drive_wheel_link']}">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <cylinder
+            radius="${config['wheels']['right_drive']['radius']}"
+            length="${config['wheels']['right_drive']['width']}"/>
+        </geometry>
+        <material name="${config['materials']['wheels']['name']}"/>
+      </visual>
+
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <cylinder
+            radius="${config['wheels']['right_drive']['radius']}"
+            length="${config['wheels']['right_drive']['width']}"/>
+        </geometry>
+      </collision>
+
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="${config['inertial']['wheel']['mass']}"/>
+        <inertia
+          ixx="${config['inertial']['wheel']['ixx']}"
+          ixy="${config['inertial']['wheel']['ixy']}"
+          ixz="${config['inertial']['wheel']['ixz']}"
+          iyy="${config['inertial']['wheel']['iyy']}"
+          iyz="${config['inertial']['wheel']['iyz']}"
+          izz="${config['inertial']['wheel']['izz']}"/>
+      </inertial>
+    </link>
+
+  </xacro:macro>
+
+</robot>

@@ -1,0 +1,11 @@
+frames:
+  map: map
+  odom: odom
+  base: base_footprint
+  base_link: base_link
+  scan: lidar_link
+
+topics:
+  scan: /scan
+  odom: /odom
+  cmd_vel: /cmd_vel

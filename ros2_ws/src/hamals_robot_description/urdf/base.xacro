@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="hamals_base" params="config">
+
+    <!-- Zemindeki ana referans frame -->
+    <link name="${config['robot']['frames']['base_footprint']}"/>
+
+    <!-- Gövde merkezi -->
+    <joint name="base_footprint_to_base_link" type="fixed">
+      <parent link="${config['robot']['frames']['base_footprint']}"/>
+      <child link="${config['robot']['frames']['base_link']}"/>
+      <origin
+        xyz="${config['base']['origin']['xyz'][0]} ${config['base']['origin']['xyz'][1]} ${config['base']['origin']['xyz'][2]}"
+        rpy="${config['base']['origin']['rpy'][0]} ${config['base']['origin']['rpy'][1]} ${config['base']['origin']['rpy'][2]}"/>
+    </joint>
+
+    <link name="${config['robot']['frames']['base_link']}">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="${config['base']['length']} ${config['base']['width']} ${config['base']['height']}"/>
+        </geometry>
+        <material name="${config['materials']['base']['name']}"/>
+      </visual>
+
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="${config['base']['collision']['length']} ${config['base']['collision']['width']} ${config['base']['collision']['height']}"/>
+        </geometry>
+      </collision>
+
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="${config['inertial']['base']['mass']}"/>
+        <inertia
+          ixx="${config['inertial']['base']['ixx']}"
+          ixy="${config['inertial']['base']['ixy']}"
+          ixz="${config['inertial']['base']['ixz']}"
+          iyy="${config['inertial']['base']['iyy']}"
+          iyz="${config['inertial']['base']['iyz']}"
+          izz="${config['inertial']['base']['izz']}"/>
+      </inertial>
+    </link>
+
+  </xacro:macro>
+
+</robot>

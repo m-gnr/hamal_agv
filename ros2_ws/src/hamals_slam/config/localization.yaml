@@ -1,0 +1,17 @@
+slam_toolbox:
+  ros__parameters:
+
+    mode: localization
+
+    map_frame: map
+    odom_frame: odom
+    base_frame: base_footprint
+
+    scan_topic: /scan
+
+    use_odometry: true
+    use_scan_matching: true
+
+
+    resolution: 0.03
+    max_laser_range: 8.0

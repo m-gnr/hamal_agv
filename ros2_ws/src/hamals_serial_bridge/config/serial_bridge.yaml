@@ -1,0 +1,63 @@
+/**:
+  ros__parameters:
+    port: /dev/ttyACM0
+    baudrate: 230400
+    timeout_ms: 50
+
+    frame_id: odom
+    child_frame_id: base_footprint
+
+    imu_frame_id: imu_link
+
+    cmd_vel_topic: /cmd_vel
+    odom_topic: /odom_raw
+    imu_topic: /imu/data
+
+    wheel_radius_m: 0.03729
+    track_width_m: 0.18
+    cpr_left: 3959
+    cpr_right: 3963
+
+    # ENC dt guard (seconds)
+    enc_dt_min_s: 0.0
+    enc_dt_max_s: 0.5
+
+    # IMU publish options
+    publish_linear_accel: true
+
+    # IMU covariance diag (3 values)
+    imu_ang_vel_cov_diag: [9999.0, 9999.0, 0.005]
+    imu_lin_acc_cov_diag: [0.01, 9999.0, 9999.0]
+
+    pose_covariance: [
+      0.05, 0.0, 0.0, 0.0, 0.0, 0.0,
+      0.0, 0.05, 0.0, 0.0, 0.0, 0.0,
+      0.0, 0.0, 9999.0, 0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 9999.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 0.0, 9999.0, 0.0,
+      0.0, 0.0, 0.0, 0.0, 0.0, 9999.0
+    ]
+
+    twist_covariance: [
+      0.001, 0.0, 0.0, 0.0, 0.0, 0.0,
+      0.0, 9999.0, 0.0, 0.0, 0.0, 0.0,
+      0.0, 0.0, 9999.0, 0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 9999.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 0.0, 9999.0, 0.0,
+      0.0, 0.0, 0.0, 0.0, 0.0, 0.01
+    ]
+
+    reset_on_startup: true
+    reset_pulse_ms: 100
+    reset_boot_wait_ms: 1500
+
+    debug: false
+
+    # cmd_vel politikası
+    cmd_vel_timeout_ms: 500
+    cmd_vel_rate_limit_hz: 25
+
+    cmd_dedup_enabled: true
+    cmd_dedup_eps_v: 0.02
+    cmd_dedup_eps_w: 0.05
+    cmd_force_resend_ms: 300

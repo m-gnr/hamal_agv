@@ -1,0 +1,93 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="hamals_lidar" params="config">
+
+    <!-- LiDAR mount: gövdenin üstünde tam ortadaki silindir yükseltici -->
+    <joint name="${config['lidar_mount']['joint']['name']}" type="${config['lidar_mount']['joint']['type']}">
+      <parent link="${config['lidar_mount']['joint']['parent']}"/>
+      <child link="${config['lidar_mount']['joint']['child']}"/>
+      <origin
+        xyz="${config['lidar_mount']['origin']['xyz'][0]} ${config['lidar_mount']['origin']['xyz'][1]} ${config['lidar_mount']['origin']['xyz'][2]}"
+        rpy="${config['lidar_mount']['origin']['rpy'][0]} ${config['lidar_mount']['origin']['rpy'][1]} ${config['lidar_mount']['origin']['rpy'][2]}"/>
+    </joint>
+
+    <link name="${config['robot']['frames']['lidar_mount_link']}">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <cylinder
+            radius="${config['lidar_mount']['radius']}"
+            length="${config['lidar_mount']['height']}"/>
+        </geometry>
+        <material name="${config['materials']['lidar_mount']['name']}"/>
+      </visual>
+
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <cylinder
+            radius="${config['lidar_mount']['radius']}"
+            length="${config['lidar_mount']['height']}"/>
+        </geometry>
+      </collision>
+
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="${config['inertial']['lidar_mount']['mass']}"/>
+        <inertia
+          ixx="${config['inertial']['lidar_mount']['ixx']}"
+          ixy="${config['inertial']['lidar_mount']['ixy']}"
+          ixz="${config['inertial']['lidar_mount']['ixz']}"
+          iyy="${config['inertial']['lidar_mount']['iyy']}"
+          iyz="${config['inertial']['lidar_mount']['iyz']}"
+          izz="${config['inertial']['lidar_mount']['izz']}"/>
+      </inertial>
+    </link>
+
+
+    <!-- LiDAR sensör gövdesi -->
+    <joint name="${config['lidar']['joint']['name']}" type="${config['lidar']['joint']['type']}">
+      <parent link="${config['lidar']['joint']['parent']}"/>
+      <child link="${config['lidar']['joint']['child']}"/>
+      <origin
+        xyz="${config['lidar']['origin']['xyz'][0]} ${config['lidar']['origin']['xyz'][1]} ${config['lidar']['origin']['xyz'][2]}"
+        rpy="${config['lidar']['origin']['rpy'][0]} ${config['lidar']['origin']['rpy'][1]} ${config['lidar']['origin']['rpy'][2]}"/>
+    </joint>
+
+    <link name="${config['robot']['frames']['lidar_link']}">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <cylinder
+            radius="${config['lidar']['radius']}"
+            length="${config['lidar']['height']}"/>
+        </geometry>
+        <material name="${config['materials']['lidar']['name']}"/>
+      </visual>
+
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <cylinder
+            radius="${config['lidar']['radius']}"
+            length="${config['lidar']['height']}"/>
+        </geometry>
+      </collision>
+
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="${config['inertial']['lidar']['mass']}"/>
+        <inertia
+          ixx="${config['inertial']['lidar']['ixx']}"
+          ixy="${config['inertial']['lidar']['ixy']}"
+          ixz="${config['inertial']['lidar']['ixz']}"
+          iyy="${config['inertial']['lidar']['iyy']}"
+          iyz="${config['inertial']['lidar']['iyz']}"
+          izz="${config['inertial']['lidar']['izz']}"/>
+      </inertial>
+    </link>
+
+  </xacro:macro>
+
+</robot>

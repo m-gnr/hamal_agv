@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="hamals_casters" params="config">
+
+    <!-- Arka orta caster teker -->
+    <joint name="${config['caster']['rear_center']['joint']['name']}" type="${config['caster']['rear_center']['joint']['type']}">
+      <parent link="${config['caster']['rear_center']['joint']['parent']}"/>
+      <child link="${config['caster']['rear_center']['joint']['child']}"/>
+      <origin
+        xyz="${config['caster']['rear_center']['origin']['xyz'][0]} ${config['caster']['rear_center']['origin']['xyz'][1]} ${config['caster']['rear_center']['origin']['xyz'][2]}"
+        rpy="${config['caster']['rear_center']['origin']['rpy'][0]} ${config['caster']['rear_center']['origin']['rpy'][1]} ${config['caster']['rear_center']['origin']['rpy'][2]}"/>
+    </joint>
+
+    <link name="${config['robot']['frames']['rear_center_caster_link']}">
+
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <sphere radius="${config['caster']['rear_center']['radius']}"/>
+        </geometry>
+        <material name="${config['materials']['caster']['name']}"/>
+      </visual>
+
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <sphere radius="${config['caster']['rear_center']['radius']}"/>
+        </geometry>
+      </collision>
+
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="${config['inertial']['caster']['mass']}"/>
+        <inertia
+          ixx="${config['inertial']['caster']['ixx']}"
+          ixy="${config['inertial']['caster']['ixy']}"
+          ixz="${config['inertial']['caster']['ixz']}"
+          iyy="${config['inertial']['caster']['iyy']}"
+          iyz="${config['inertial']['caster']['iyz']}"
+          izz="${config['inertial']['caster']['izz']}"/>
+      </inertial>
+
+    </link>
+
+  </xacro:macro>
+
+</robot>

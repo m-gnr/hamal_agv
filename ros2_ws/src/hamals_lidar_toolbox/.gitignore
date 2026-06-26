@@ -1,0 +1,64 @@
+# ===============================
+# ROS 2 / colcon build artifacts
+# ===============================
+build/
+install/
+log/
+
+# ===============================
+# ROS runtime & temp files
+# ===============================
+*.bag
+*.bag.active
+*.bag.metadata
+*.db3
+*.db3-wal
+*.db3-shm
+
+# ===============================
+# IDE / Editor files
+# ===============================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ===============================
+# Python
+# ===============================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv/
+
+# ===============================
+# CMake / C++
+# ===============================
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# ===============================
+# Coverage / Debug
+# ===============================
+*.gcda
+*.gcno
+*.gcov
+*.profraw
+*.profdata
+
+# ===============================
+# OS / Misc
+# ===============================
+Thumbs.db
+
+# ===============================
+# Generated documentation
+# ===============================
+docs/_build/

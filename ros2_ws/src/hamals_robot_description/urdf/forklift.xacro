@@ -1,0 +1,189 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="hamals_forklift" params="config">
+
+    <!-- Forklift mast: gövdenin ön tarafındaki sabit dikey kaldırma mekanizması -->
+    <joint name="${config['forklift']['mast']['joint']['name']}" type="${config['forklift']['mast']['joint']['type']}">
+      <parent link="${config['forklift']['mast']['joint']['parent']}"/>
+      <child link="${config['forklift']['mast']['joint']['child']}"/>
+      <origin
+        xyz="${config['forklift']['mast']['origin']['xyz'][0]} ${config['forklift']['mast']['origin']['xyz'][1]} ${config['forklift']['mast']['origin']['xyz'][2]}"
+        rpy="${config['forklift']['mast']['origin']['rpy'][0]} ${config['forklift']['mast']['origin']['rpy'][1]} ${config['forklift']['mast']['origin']['rpy'][2]}"/>
+    </joint>
+
+    <link name="${config['robot']['frames']['forklift_mast_link']}">
+
+      <!-- Sol dikey mast kolonu -->
+      <visual>
+        <origin
+          xyz="${config['forklift']['mast']['columns']['left']['origin']['xyz'][0]} ${config['forklift']['mast']['columns']['left']['origin']['xyz'][1]} ${config['forklift']['mast']['columns']['left']['origin']['xyz'][2]}"
+          rpy="${config['forklift']['mast']['columns']['left']['origin']['rpy'][0]} ${config['forklift']['mast']['columns']['left']['origin']['rpy'][1]} ${config['forklift']['mast']['columns']['left']['origin']['rpy'][2]}"/>
+        <geometry>
+          <box size="${config['forklift']['mast']['columns']['left']['depth']} ${config['forklift']['mast']['columns']['left']['width']} ${config['forklift']['mast']['columns']['left']['height']}"/>
+        </geometry>
+        <material name="${config['materials']['forklift_mast']['name']}"/>
+      </visual>
+
+      <!-- Sağ dikey mast kolonu -->
+      <visual>
+        <origin
+          xyz="${config['forklift']['mast']['columns']['right']['origin']['xyz'][0]} ${config['forklift']['mast']['columns']['right']['origin']['xyz'][1]} ${config['forklift']['mast']['columns']['right']['origin']['xyz'][2]}"
+          rpy="${config['forklift']['mast']['columns']['right']['origin']['rpy'][0]} ${config['forklift']['mast']['columns']['right']['origin']['rpy'][1]} ${config['forklift']['mast']['columns']['right']['origin']['rpy'][2]}"/>
+        <geometry>
+          <box size="${config['forklift']['mast']['columns']['right']['depth']} ${config['forklift']['mast']['columns']['right']['width']} ${config['forklift']['mast']['columns']['right']['height']}"/>
+        </geometry>
+        <material name="${config['materials']['forklift_mast']['name']}"/>
+      </visual>
+
+      <!-- Mast için basit collision: tüm mast alanını kapsayan tek kutu -->
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="${config['forklift']['mast']['depth']} ${config['forklift']['mast']['width']} ${config['forklift']['mast']['height']}"/>
+        </geometry>
+      </collision>
+
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="${config['inertial']['forklift_mast']['mass']}"/>
+        <inertia
+          ixx="${config['inertial']['forklift_mast']['ixx']}"
+          ixy="${config['inertial']['forklift_mast']['ixy']}"
+          ixz="${config['inertial']['forklift_mast']['ixz']}"
+          iyy="${config['inertial']['forklift_mast']['iyy']}"
+          iyz="${config['inertial']['forklift_mast']['iyz']}"
+          izz="${config['inertial']['forklift_mast']['izz']}"/>
+      </inertial>
+
+    </link>
+
+
+    <!-- Hareketli carriage: mast üzerinde yukarı-aşağı kayan parça -->
+    <joint name="${config['forklift']['carriage']['joint']['name']}" type="${config['forklift']['carriage']['joint']['type']}">
+      <parent link="${config['forklift']['carriage']['joint']['parent']}"/>
+      <child link="${config['forklift']['carriage']['joint']['child']}"/>
+      <origin
+        xyz="${config['forklift']['carriage']['origin']['xyz'][0]} ${config['forklift']['carriage']['origin']['xyz'][1]} ${config['forklift']['carriage']['origin']['xyz'][2]}"
+        rpy="${config['forklift']['carriage']['origin']['rpy'][0]} ${config['forklift']['carriage']['origin']['rpy'][1]} ${config['forklift']['carriage']['origin']['rpy'][2]}"/>
+      <axis
+        xyz="${config['forklift']['carriage']['joint']['axis'][0]} ${config['forklift']['carriage']['joint']['axis'][1]} ${config['forklift']['carriage']['joint']['axis'][2]}"/>
+      <limit
+        lower="${config['forklift']['carriage']['joint']['limit']['lower']}"
+        upper="${config['forklift']['carriage']['joint']['limit']['upper']}"
+        effort="${config['forklift']['carriage']['joint']['limit']['effort']}"
+        velocity="${config['forklift']['carriage']['joint']['limit']['velocity']}"/>
+    </joint>
+
+    <link name="${config['robot']['frames']['fork_carriage_link']}">
+
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="${config['forklift']['carriage']['depth']} ${config['forklift']['carriage']['width']} ${config['forklift']['carriage']['height']}"/>
+        </geometry>
+        <material name="${config['materials']['fork_carriage']['name']}"/>
+      </visual>
+
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="${config['forklift']['carriage']['depth']} ${config['forklift']['carriage']['width']} ${config['forklift']['carriage']['height']}"/>
+        </geometry>
+      </collision>
+
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="${config['inertial']['fork_carriage']['mass']}"/>
+        <inertia
+          ixx="${config['inertial']['fork_carriage']['ixx']}"
+          ixy="${config['inertial']['fork_carriage']['ixy']}"
+          ixz="${config['inertial']['fork_carriage']['ixz']}"
+          iyy="${config['inertial']['fork_carriage']['iyy']}"
+          iyz="${config['inertial']['fork_carriage']['iyz']}"
+          izz="${config['inertial']['fork_carriage']['izz']}"/>
+      </inertial>
+
+    </link>
+
+
+    <!-- Sol forklift bıçağı -->
+    <joint name="${config['forklift']['forks']['left']['joint']['name']}" type="${config['forklift']['forks']['left']['joint']['type']}">
+      <parent link="${config['forklift']['forks']['left']['joint']['parent']}"/>
+      <child link="${config['forklift']['forks']['left']['joint']['child']}"/>
+      <origin
+        xyz="${config['forklift']['forks']['left']['origin']['xyz'][0]} ${config['forklift']['forks']['left']['origin']['xyz'][1]} ${config['forklift']['forks']['left']['origin']['xyz'][2]}"
+        rpy="${config['forklift']['forks']['left']['origin']['rpy'][0]} ${config['forklift']['forks']['left']['origin']['rpy'][1]} ${config['forklift']['forks']['left']['origin']['rpy'][2]}"/>
+    </joint>
+
+    <link name="${config['robot']['frames']['left_fork_link']}">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="${config['forklift']['forks']['length']} ${config['forklift']['forks']['width']} ${config['forklift']['forks']['height']}"/>
+        </geometry>
+        <material name="${config['materials']['forks']['name']}"/>
+      </visual>
+
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="${config['forklift']['forks']['length']} ${config['forklift']['forks']['width']} ${config['forklift']['forks']['height']}"/>
+        </geometry>
+      </collision>
+
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="${config['inertial']['fork']['mass']}"/>
+        <inertia
+          ixx="${config['inertial']['fork']['ixx']}"
+          ixy="${config['inertial']['fork']['ixy']}"
+          ixz="${config['inertial']['fork']['ixz']}"
+          iyy="${config['inertial']['fork']['iyy']}"
+          iyz="${config['inertial']['fork']['iyz']}"
+          izz="${config['inertial']['fork']['izz']}"/>
+      </inertial>
+    </link>
+
+
+    <!-- Sağ forklift bıçağı -->
+    <joint name="${config['forklift']['forks']['right']['joint']['name']}" type="${config['forklift']['forks']['right']['joint']['type']}">
+      <parent link="${config['forklift']['forks']['right']['joint']['parent']}"/>
+      <child link="${config['forklift']['forks']['right']['joint']['child']}"/>
+      <origin
+        xyz="${config['forklift']['forks']['right']['origin']['xyz'][0]} ${config['forklift']['forks']['right']['origin']['xyz'][1]} ${config['forklift']['forks']['right']['origin']['xyz'][2]}"
+        rpy="${config['forklift']['forks']['right']['origin']['rpy'][0]} ${config['forklift']['forks']['right']['origin']['rpy'][1]} ${config['forklift']['forks']['right']['origin']['rpy'][2]}"/>
+    </joint>
+
+    <link name="${config['robot']['frames']['right_fork_link']}">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="${config['forklift']['forks']['length']} ${config['forklift']['forks']['width']} ${config['forklift']['forks']['height']}"/>
+        </geometry>
+        <material name="${config['materials']['forks']['name']}"/>
+      </visual>
+
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="${config['forklift']['forks']['length']} ${config['forklift']['forks']['width']} ${config['forklift']['forks']['height']}"/>
+        </geometry>
+      </collision>
+
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="${config['inertial']['fork']['mass']}"/>
+        <inertia
+          ixx="${config['inertial']['fork']['ixx']}"
+          ixy="${config['inertial']['fork']['ixy']}"
+          ixz="${config['inertial']['fork']['ixz']}"
+          iyy="${config['inertial']['fork']['iyy']}"
+          iyz="${config['inertial']['fork']['iyz']}"
+          izz="${config['inertial']['fork']['izz']}"/>
+      </inertial>
+    </link>
+
+  </xacro:macro>
+
+</robot>

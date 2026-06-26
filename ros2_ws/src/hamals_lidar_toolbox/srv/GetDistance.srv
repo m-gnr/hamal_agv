@@ -1,0 +1,9 @@
+# Request
+float32 angle_min
+float32 angle_max
+---
+# Response
+float32 min_distance
+float32 mean_distance
+float32 valid_ratio
+bool valid

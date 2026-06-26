@@ -1,0 +1,96 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="hamals_gazebo" params="config">
+
+    <!-- ===================================================== -->
+    <!-- BASE -->
+    <!-- ===================================================== -->
+
+    <gazebo reference="${config['robot']['frames']['base_link']}">
+      <material>${config['gazebo']['materials']['base']}</material>
+      <mu1>${config['physics']['default_friction']['mu1']}</mu1>
+      <mu2>${config['physics']['default_friction']['mu2']}</mu2>
+      <kp>${config['physics']['default_contact']['kp']}</kp>
+      <kd>${config['physics']['default_contact']['kd']}</kd>
+    </gazebo>
+
+
+    <!-- ===================================================== -->
+    <!-- DRIVE WHEELS -->
+    <!-- ===================================================== -->
+
+    <gazebo reference="${config['robot']['frames']['left_drive_wheel_link']}">
+      <material>${config['gazebo']['materials']['wheels']}</material>
+      <mu1>${config['gazebo']['wheels']['friction']['mu1']}</mu1>
+      <mu2>${config['gazebo']['wheels']['friction']['mu2']}</mu2>
+      <kp>${config['physics']['default_contact']['kp']}</kp>
+      <kd>${config['physics']['default_contact']['kd']}</kd>
+    </gazebo>
+
+    <gazebo reference="${config['robot']['frames']['right_drive_wheel_link']}">
+      <material>${config['gazebo']['materials']['wheels']}</material>
+      <mu1>${config['gazebo']['wheels']['friction']['mu1']}</mu1>
+      <mu2>${config['gazebo']['wheels']['friction']['mu2']}</mu2>
+      <kp>${config['physics']['default_contact']['kp']}</kp>
+      <kd>${config['physics']['default_contact']['kd']}</kd>
+    </gazebo>
+
+
+    <!-- ===================================================== -->
+    <!-- CASTER -->
+    <!-- ===================================================== -->
+
+    <gazebo reference="${config['robot']['frames']['rear_center_caster_link']}">
+      <material>${config['gazebo']['materials']['caster']}</material>
+      <mu1>${config['gazebo']['caster']['friction']['mu1']}</mu1>
+      <mu2>${config['gazebo']['caster']['friction']['mu2']}</mu2>
+      <kp>${config['physics']['default_contact']['kp']}</kp>
+      <kd>${config['physics']['default_contact']['kd']}</kd>
+    </gazebo>
+
+
+    <!-- ===================================================== -->
+    <!-- FORKLIFT -->
+    <!-- ===================================================== -->
+
+    <gazebo reference="${config['robot']['frames']['forklift_mast_link']}">
+      <material>${config['gazebo']['materials']['forklift_mast']}</material>
+      <mu1>${config['physics']['default_friction']['mu1']}</mu1>
+      <mu2>${config['physics']['default_friction']['mu2']}</mu2>
+    </gazebo>
+
+    <gazebo reference="${config['robot']['frames']['fork_carriage_link']}">
+      <material>${config['gazebo']['materials']['fork_carriage']}</material>
+      <mu1>${config['physics']['default_friction']['mu1']}</mu1>
+      <mu2>${config['physics']['default_friction']['mu2']}</mu2>
+    </gazebo>
+
+    <gazebo reference="${config['robot']['frames']['left_fork_link']}">
+      <material>${config['gazebo']['materials']['forks']}</material>
+      <mu1>${config['physics']['default_friction']['mu1']}</mu1>
+      <mu2>${config['physics']['default_friction']['mu2']}</mu2>
+    </gazebo>
+
+    <gazebo reference="${config['robot']['frames']['right_fork_link']}">
+      <material>${config['gazebo']['materials']['forks']}</material>
+      <mu1>${config['physics']['default_friction']['mu1']}</mu1>
+      <mu2>${config['physics']['default_friction']['mu2']}</mu2>
+    </gazebo>
+
+
+    <!-- ===================================================== -->
+    <!-- LIDAR VISUAL LINKS -->
+    <!-- ===================================================== -->
+
+    <gazebo reference="${config['robot']['frames']['lidar_mount_link']}">
+      <material>${config['gazebo']['materials']['lidar_mount']}</material>
+    </gazebo>
+
+    <gazebo reference="${config['robot']['frames']['lidar_link']}">
+      <material>${config['gazebo']['materials']['lidar']}</material>
+    </gazebo>
+
+  </xacro:macro>
+
+</robot>

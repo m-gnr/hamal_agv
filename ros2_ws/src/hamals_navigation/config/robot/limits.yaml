@@ -1,0 +1,25 @@
+# Robot hareket limitleri ve Nav2 toleransları
+# Bu dosya: Nav2 controller/costmap ayarlarını belirlerken tek referans olsun.
+
+limits:
+  # Maksimum ileri hız (m/s). İlk testte düşük tutuyoruz; sonra kademeli artırılır.
+  max_linear_mps: 0.25
+
+  # Maksimum açısal hız (rad/s). Robotun kendi etrafında dönme hızı üst sınırı.
+  max_angular_rps: 1.0
+
+  # Doğrusal ivme limiti (m/s^2). Nav2'nin hızlanma komutlarını ne kadar hızlı artırabileceğini sınırlar.
+  # Firmware/middleware zaten ramp uygular; burada amaç üst katmanı aşırı agresif olmaktan korumak.
+  acc_linear_mps2: 0.6
+
+  # Açısal ivme limiti (rad/s^2). Dönüş hızının ne kadar hızlı artabileceğini sınırlar.
+  acc_angular_rps2: 1.5
+
+tolerances:
+  # Hedef pozisyona (x,y) kabul toleransı (metre). Robot hedefe bu mesafeden yakınsa "ulaştı" sayılır.
+  # İlk testte gevşek (0.10 m) iyi; titreme ve gereksiz düzeltmeleri azaltır.
+  xy_goal_tol_m: 0.10
+
+  # Hedef yönelimi (yaw) kabul toleransı (radyan).
+  # 0.26 rad ≈ 15 derece. Robot hedefte çok ince hizalama yapmaya çalışıp takılmasın diye başlangıçta gevşek.
+  yaw_goal_tol_rad: 0.26

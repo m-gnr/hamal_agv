@@ -1,0 +1,4 @@
+robot_io:
+  lidar:
+    port: "/dev/ttyUSB0"
+    frame_id: "lidar_link"

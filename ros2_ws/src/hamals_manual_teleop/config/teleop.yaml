@@ -1,0 +1,20 @@
+teleop_node:
+  ros__parameters:
+    publish_rate_hz: 20.0
+    cmd_vel_topic: /cmd_vel
+
+    linear_speed: 0.1
+    linear_min: 0.0
+    linear_max: 0.3
+    linear_step: 0.05
+
+    angular_speed: 0.5
+    angular_min: 0.0
+    angular_max: 1.5
+    angular_step: 0.1
+
+    key_forward: w
+    key_backward: s
+    key_left: a
+    key_right: d
+    key_stop: x

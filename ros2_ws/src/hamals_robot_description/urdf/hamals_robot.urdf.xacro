@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<robot name="hamals_robot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:property name="config" value="${xacro.load_yaml('$(find hamals_robot_description)/config/robot_dimensions.yaml')}"/>
+
+  <xacro:include filename="$(find hamals_robot_description)/urdf/materials.xacro"/>
+  <xacro:include filename="$(find hamals_robot_description)/urdf/base.xacro"/>
+  <xacro:include filename="$(find hamals_robot_description)/urdf/wheels.xacro"/>
+  <xacro:include filename="$(find hamals_robot_description)/urdf/casters.xacro"/>
+  <xacro:include filename="$(find hamals_robot_description)/urdf/lidar.xacro"/>
+  <xacro:include filename="$(find hamals_robot_description)/urdf/forklift.xacro"/>
+  <xacro:include filename="$(find hamals_robot_description)/urdf/gazebo.xacro"/>
+
+  <xacro:hamals_materials config="${config}"/>
+  <xacro:hamals_base config="${config}"/>
+  <xacro:hamals_wheels config="${config}"/>
+  <xacro:hamals_casters config="${config}"/>
+  <xacro:hamals_lidar config="${config}"/>
+  <xacro:hamals_forklift config="${config}"/>
+  <xacro:hamals_gazebo config="${config}"/>
+
+</robot>

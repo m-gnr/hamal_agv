@@ -1,0 +1,103 @@
+# hamals_serial_bridge/protocol.py
+
+# ======================================================
+# CHECKSUM
+# ======================================================
+
+def compute_checksum(payload: str) -> int:
+    """
+    XOR checksum of payload (no $, no *).
+    """
+    cs = 0
+    for c in payload:
+        cs ^= ord(c)
+    return cs
+
+
+# ======================================================
+# ROS → MCU
+# ======================================================
+
+def encode_cmd(v: float, w: float) -> str:
+    """
+    Encode cmd_vel to framed protocol:
+
+      $CMD,v,w*CS\n
+    """
+    payload = f"CMD,{v:.3f},{w:.3f}"
+    cs = compute_checksum(payload)
+    return f"${payload}*{cs:02X}\n"
+
+
+# ======================================================
+# MCU → ROS
+# ======================================================
+
+def decode_line(line: str):
+    """
+    Decode framed protocol line.
+
+    Expected:
+      $ENC,t_us,dl,dr*CS
+      $IMU,t_us,gz,ax,ay,az*CS
+      $ODOM,t_us,x,y,yaw,v,w*CS (legacy)
+    """
+
+    if not line:
+        return None
+
+    line = line.strip()
+
+    # Must start with $
+    if not line.startswith("$"):
+        return None
+
+    # Split checksum
+    try:
+        body, cs_part = line[1:].split("*")
+    except ValueError:
+        return None
+
+    # Validate checksum
+    try:
+        received_cs = int(cs_part, 16)
+    except ValueError:
+        return None
+
+    calc_cs = compute_checksum(body)
+    if calc_cs != received_cs:
+        return None
+
+    # Parse payload
+    parts = body.split(",")
+    try:
+        if parts[0] == "ENC" and len(parts) == 4:
+            return {
+                "type": "enc",
+                "t_us": int(parts[1]),
+                "dl": int(parts[2]),
+                "dr": int(parts[3]),
+            }
+        elif parts[0] == "IMU" and len(parts) == 6:
+            return {
+                "type": "imu",
+                "t_us": int(parts[1]),
+                "gz": float(parts[2]),
+                "ax": float(parts[3]),
+                "ay": float(parts[4]),
+                "az": float(parts[5]),
+            }
+        elif parts[0] == "ODOM" and len(parts) == 7:
+            return {
+                "type": "odom",
+                "t_us": int(parts[1]),
+                "x": float(parts[2]),
+                "y": float(parts[3]),
+                "yaw": float(parts[4]),
+                "v": float(parts[5]),
+                "w": float(parts[6]),
+            }
+        else:
+            return None
+    except ValueError:
+        return None

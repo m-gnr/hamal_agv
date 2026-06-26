@@ -1,0 +1,496 @@
+# ============================================================
+# hamals_robot — Forklift AGV Robot Konfigürasyonu
+# v6 — gövde, teker, caster ve forklift mast hizası düzeltildi
+# ============================================================
+#
+# Koordinat sistemi:
+#   +x  : ileri  (fork yönü)
+#   +y  : sol
+#   +z  : yukarı
+#
+# Önemli z referansları:
+#   z = 0.000 : zemin (base_footprint)
+#   z = 0.040 : gövde alt yüzeyi / fork alt yüzeyi / caster merkezi
+#   z = 0.075 : drive wheel merkezi
+#   z = 0.215 : base_link (gövde geometrik merkezi)
+#   z = 0.390 : gövde üst yüzeyi / forklift mast üst sınırı
+#
+# Zemin ve hizalama doğrulama:
+#   drive wheel altı : 0.215 − 0.140 − 0.075 = 0.000 ✓
+#   caster altı      : 0.215 − 0.175 − 0.040 = 0.000 ✓
+#   gövde altı       : 0.215 − 0.175 = 0.040 ✓
+#   mast altı        : 0.215 + 0.000 − 0.175 = 0.040 ✓
+#   mast üstü        : 0.215 + 0.000 + 0.175 = 0.390 ✓
+#   fork altı        : 0.140 − 0.080 − 0.020 = 0.040 ✓
+# ============================================================
+
+robot:
+  name: "hamals_robot"
+  type: "forklift_agv"
+
+  frames:
+    base_footprint: "base_footprint"
+    base_link: "base_link"
+    forklift_mast_link: "forklift_mast_link"
+    fork_carriage_link: "fork_carriage_link"
+    left_fork_link: "left_fork_link"
+    right_fork_link: "right_fork_link"
+    left_drive_wheel_link: "left_drive_wheel_link"
+    right_drive_wheel_link: "right_drive_wheel_link"
+    rear_center_caster_link: "rear_center_caster_link"
+    lidar_mount_link: "lidar_mount_link"
+    lidar_link: "lidar_link"
+
+units:
+  length: "meter"
+  angle: "radian"
+
+# ============================================================
+# TABAN
+# ============================================================
+
+base:
+  length: 0.70
+  width: 0.45
+  height: 0.35
+
+  # base_link gövdenin geometrik merkezidir.
+  # Gövde zemine oturmaz.
+  # Gövde altı: 0.215 - 0.175 = 0.040 m
+  origin:
+    xyz: [0.0, 0.0, 0.215]
+    rpy: [0.0, 0.0, 0.0]
+
+  collision:
+    length: 0.70
+    width: 0.45
+    height: 0.35
+
+# ============================================================
+# SÜRÜŞ TEKERLEKLERİ
+# ============================================================
+
+wheels:
+  left_drive:
+    enabled: true
+    type: "drive_wheel"
+
+    radius: 0.075
+    width: 0.04
+
+    # Dünya z merkezi = 0.215 - 0.140 = 0.075
+    # Alt nokta       = 0.075 - 0.075 = 0.000
+    origin:
+      xyz: [0.25, 0.245, -0.14]
+      rpy: [1.5708, 0.0, 0.0]
+
+    joint:
+      name: "left_drive_wheel_joint"
+      type: "continuous"
+      parent: "base_link"
+      child: "left_drive_wheel_link"
+      axis: [0.0, 0.0, 1.0]
+
+  right_drive:
+    enabled: true
+    type: "drive_wheel"
+
+    radius: 0.075
+    width: 0.04
+
+    # Dünya z merkezi = 0.215 - 0.140 = 0.075
+    # Alt nokta       = 0.075 - 0.075 = 0.000
+    origin:
+      xyz: [0.25, -0.245, -0.14]
+      rpy: [1.5708, 0.0, 0.0]
+
+    joint:
+      name: "right_drive_wheel_joint"
+      type: "continuous"
+      parent: "base_link"
+      child: "right_drive_wheel_link"
+      axis: [0.0, 0.0, 1.0]
+
+# ============================================================
+# CASTER / ARKA DENGE TEKERİ
+# ============================================================
+
+caster:
+  rear_center:
+    enabled: true
+    type: "fixed_caster"
+
+    radius: 0.04
+
+    # Dünya z merkezi = 0.215 - 0.175 = 0.040
+    # Alt nokta       = 0.040 - 0.040 = 0.000
+    # Üst nokta       = 0.040 + 0.040 = 0.080
+    origin:
+      xyz: [-0.26, 0.0, -0.175]
+      rpy: [0.0, 0.0, 0.0]
+
+    joint:
+      name: "rear_center_caster_joint"
+      type: "fixed"
+      parent: "base_link"
+      child: "rear_center_caster_link"
+
+# ============================================================
+# FORKLIFT MEKANİZMASI
+# ============================================================
+
+forklift:
+  mast:
+    enabled: true
+
+    # Mast artık robot tavanını geçmez.
+    # Gövde altı = 0.040
+    # Gövde üstü = 0.390
+    # Mast yüksekliği = 0.390 - 0.040 = 0.350
+    height: 0.35
+    width: 0.36
+    depth: 0.05
+
+    # Mast merkezi base_link ile aynı z seviyesindedir.
+    # Mast altı = 0.215 - 0.175 = 0.040
+    # Mast üstü = 0.215 + 0.175 = 0.390
+    origin:
+      xyz: [0.35, 0.0, 0.0]
+      rpy: [0.0, 0.0, 0.0]
+
+    joint:
+      name: "forklift_mast_joint"
+      type: "fixed"
+      parent: "base_link"
+      child: "forklift_mast_link"
+
+    columns:
+      left:
+        width: 0.06
+        depth: 0.05
+        height: 0.35
+        origin:
+          xyz: [0.0, 0.14, 0.0]
+          rpy: [0.0, 0.0, 0.0]
+
+      right:
+        width: 0.06
+        depth: 0.05
+        height: 0.35
+        origin:
+          xyz: [0.0, -0.14, 0.0]
+          rpy: [0.0, 0.0, 0.0]
+
+  carriage:
+    enabled: true
+
+    width: 0.36
+    depth: 0.04
+    height: 0.12
+
+    # Forkların alt yatay kısmı gövde alt tabanı ile aynı hizada başlar.
+    #
+    # mast dünya z      = 0.215
+    # fork alt hedef z  = 0.040
+    # fork merkezi z    = 0.040 + 0.020 = 0.060
+    # carriage hedef z  = 0.060 + 0.080 = 0.140
+    # offset            = 0.140 - 0.215 = -0.075
+    origin:
+      xyz: [0.03, 0.0, -0.075]
+      rpy: [0.0, 0.0, 0.0]
+
+    joint:
+      name: "forklift_lift_joint"
+      type: "prismatic"
+      parent: "forklift_mast_link"
+      child: "fork_carriage_link"
+      axis: [0.0, 0.0, 1.0]
+
+      limit:
+        lower: 0.00
+        # Mast yüksekliği 0.35 olduğu için lift upper 0.20 ile sınırlandı.
+        # Böylece carriage/fork hareketi mast yüksekliğini aşırı geçmez.
+        upper: 0.20
+        effort: 100.0
+        velocity: 0.15
+
+  forks:
+    enabled: true
+
+    length: 0.45
+    width: 0.06
+    height: 0.04
+
+    left:
+      origin:
+        xyz: [0.225, 0.14, -0.08]
+        rpy: [0.0, 0.0, 0.0]
+
+      joint:
+        name: "left_fork_joint"
+        type: "fixed"
+        parent: "fork_carriage_link"
+        child: "left_fork_link"
+
+    right:
+      origin:
+        xyz: [0.225, -0.14, -0.08]
+        rpy: [0.0, 0.0, 0.0]
+
+      joint:
+        name: "right_fork_joint"
+        type: "fixed"
+        parent: "fork_carriage_link"
+        child: "right_fork_link"
+
+# ============================================================
+# LIDAR
+# ============================================================
+
+lidar_mount:
+  enabled: true
+
+  radius: 0.06
+  height: 0.04
+
+  # Gövde üst yüzeyi dünya z = 0.215 + 0.175 = 0.390
+  # Mount merkezi dünya z = 0.390 + 0.020 = 0.410
+  # base_link'e göre      = 0.410 - 0.215 = 0.195
+  origin:
+    xyz: [0.0, 0.0, 0.195]
+    rpy: [0.0, 0.0, 0.0]
+
+  joint:
+    name: "lidar_mount_joint"
+    type: "fixed"
+    parent: "base_link"
+    child: "lidar_mount_link"
+
+lidar:
+  enabled: true
+  type: "cylindrical_2d_lidar"
+
+  radius: 0.045
+  height: 0.04
+
+  origin:
+    xyz: [0.0, 0.0, 0.04]
+    rpy: [0.0, 0.0, 0.0]
+
+  joint:
+    name: "lidar_joint"
+    type: "fixed"
+    parent: "lidar_mount_link"
+    child: "lidar_link"
+
+  ros:
+    topic: "/scan"
+    frame_id: "lidar_link"
+
+# ============================================================
+# GÖRSEL MATERYALLER
+# ============================================================
+
+materials:
+  base: { name: "base_light_gray", color: [0.75, 0.75, 0.75, 1.0] }
+  forklift_mast: { name: "mast_dark_gray", color: [0.25, 0.25, 0.25, 1.0] }
+  fork_carriage: { name: "carriage_gray", color: [0.35, 0.35, 0.35, 1.0] }
+  forks: { name: "fork_dark_gray", color: [0.30, 0.30, 0.30, 1.0] }
+  wheels: { name: "wheel_black", color: [0.02, 0.02, 0.02, 1.0] }
+  caster: { name: "caster_black", color: [0.02, 0.02, 0.02, 1.0] }
+  lidar_mount: { name: "lidar_mount_gray", color: [0.20, 0.20, 0.20, 1.0] }
+  lidar: { name: "lidar_blue", color: [0.00, 0.20, 0.80, 1.0] }
+
+# ============================================================
+# FİZİK
+# ============================================================
+
+physics:
+  default_friction:
+    mu1: 1.0
+    mu2: 1.0
+
+  default_contact:
+    kp: 100000.0
+    kd: 10.0
+
+# ============================================================
+# ATALET TENSÖRLERİ
+# ============================================================
+
+inertial:
+  base:
+    mass: 18.0
+    ixx: 0.35
+    ixy: 0.0
+    ixz: 0.0
+    iyy: 0.80
+    iyz: 0.0
+    izz: 0.95
+
+  forklift_mast:
+    mass: 2.0
+    ixx: 0.05
+    ixy: 0.0
+    ixz: 0.0
+    iyy: 0.05
+    iyz: 0.0
+    izz: 0.02
+
+  fork_carriage:
+    mass: 1.5
+    ixx: 0.02
+    ixy: 0.0
+    ixz: 0.0
+    iyy: 0.03
+    iyz: 0.0
+    izz: 0.04
+
+  fork:
+    mass: 0.8
+    ixx: 0.01
+    ixy: 0.0
+    ixz: 0.0
+    iyy: 0.03
+    iyz: 0.0
+    izz: 0.03
+
+  wheel:
+    mass: 0.7
+    ixx: 0.002
+    ixy: 0.0
+    ixz: 0.0
+    iyy: 0.002
+    iyz: 0.0
+    izz: 0.001
+
+  caster:
+    mass: 0.3
+    ixx: 0.001
+    ixy: 0.0
+    ixz: 0.0
+    iyy: 0.001
+    iyz: 0.0
+    izz: 0.001
+
+  lidar_mount:
+    mass: 0.2
+    ixx: 0.0005
+    ixy: 0.0
+    ixz: 0.0
+    iyy: 0.0005
+    iyz: 0.0
+    izz: 0.0005
+
+  lidar:
+    mass: 0.25
+    ixx: 0.0008
+    ixy: 0.0
+    ixz: 0.0
+    iyy: 0.0008
+    iyz: 0.0
+    izz: 0.0008
+
+# ============================================================
+# GAZEBO
+# ============================================================
+
+gazebo:
+  enabled: true
+
+  materials:
+    base: "Gazebo/Grey"
+    forklift_mast: "Gazebo/DarkGrey"
+    fork_carriage: "Gazebo/Grey"
+    forks: "Gazebo/DarkGrey"
+    wheels: "Gazebo/Black"
+    caster: "Gazebo/Black"
+    lidar_mount: "Gazebo/DarkGrey"
+    lidar: "Gazebo/Blue"
+
+  wheels:
+    friction:
+      mu1: 1.2
+      mu2: 1.2
+
+  caster:
+    friction:
+      mu1: 0.4
+      mu2: 0.4
+
+  lidar:
+    enabled: true
+    topic: "/scan"
+    frame_name: "lidar_link"
+    update_rate: 10.0
+
+    scan:
+      samples: 720
+      resolution: 1
+      min_angle: -3.14159
+      max_angle: 3.14159
+
+    range:
+      min: 0.12
+      max: 12.0
+      resolution: 0.01
+
+    noise:
+      type: "gaussian"
+      mean: 0.0
+      stddev: 0.01
+
+# ============================================================
+# ROS 2 CONTROL
+# ============================================================
+
+ros2_control:
+  enabled: true
+
+  hardware:
+    name: "GazeboSystem"
+    plugin: "gz_ros2_control/GazeboSimSystem"
+
+  joints:
+    left_drive_wheel_joint:
+      command_interfaces: ["velocity"]
+      state_interfaces: ["position", "velocity"]
+
+    right_drive_wheel_joint:
+      command_interfaces: ["velocity"]
+      state_interfaces: ["position", "velocity"]
+
+    forklift_lift_joint:
+      command_interfaces: ["position"]
+      state_interfaces: ["position", "velocity"]
+
+# ============================================================
+# KONTROLCÜLER
+# ============================================================
+
+controllers:
+  diff_drive:
+    enabled: true
+    name: "diff_drive_controller"
+
+    left_wheel_names: ["left_drive_wheel_joint"]
+    right_wheel_names: ["right_drive_wheel_joint"]
+
+    wheel_separation: 0.49
+    wheel_radius: 0.075
+
+    cmd_vel_topic: "/cmd_vel"
+    odom_topic: "/odom"
+
+    base_frame_id: "base_footprint"
+    odom_frame_id: "odom"
+
+  forklift_lift:
+    enabled: true
+    name: "forklift_lift_controller"
+
+    joint: "forklift_lift_joint"
+    command_interface: "position"
+
+    min_position: 0.00
+    max_position: 0.20
