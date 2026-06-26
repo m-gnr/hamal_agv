@@ -1,0 +1,2 @@
+# Python bağımlılıkları
+# Paketler eklendikçe buraya eklenecek

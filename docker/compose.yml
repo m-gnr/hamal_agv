@@ -1,0 +1,10 @@
+services:
+  hamal_dev:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    volumes:
+      - ../ros2_ws:/ros2_ws
+    network_mode: host
+    stdin_open: true
+    tty: true

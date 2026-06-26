@@ -1,0 +1,13 @@
+services:
+  hamal_robot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.pi
+    volumes:
+      - ../ros2_ws:/ros2_ws
+      - /dev:/dev
+    network_mode: host
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: unless-stopped

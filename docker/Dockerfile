@@ -1,0 +1,22 @@
+FROM ros:humble
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y \
+    python3-pip \
+    python3-colcon-common-extensions \
+    ros-humble-nav2-bringup \
+    ros-humble-slam-toolbox \
+    ros-humble-robot-localization \
+    ros-humble-rplidar-ros \
+    ros-humble-robot-state-publisher \
+    ros-humble-joint-state-publisher \
+    ros-humble-xacro \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+WORKDIR /ros2_ws
+
+RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
