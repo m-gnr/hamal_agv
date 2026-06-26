@@ -9,7 +9,7 @@
 #include "hamals_lidar_toolbox/core/ScanSegmenter.hpp"
 #include "hamals_lidar_toolbox/core/ScanMetrics.hpp"
 #include "hamals_lidar_toolbox/core/ObstacleDetector.hpp"
-#include "hamals_lidar_msgs/msg/obstacle_state.hpp"
+#include "hamals_interfaces/msg/obstacle_state.hpp"
 
 #include "hamals_lidar_toolbox/ros/rviz/RvizDebugPublisher.hpp"
 
@@ -32,7 +32,7 @@ private:
         scan_subscriber_;
 
     rclcpp::Publisher<
-        hamals_lidar_msgs::msg::ObstacleState
+        hamals_interfaces::msg::ObstacleState
     >::SharedPtr obstacle_state_pub_;
 
     std::unique_ptr<hamals_lidar_toolbox::core::ScanSanitizer> sanitizer_;

@@ -23,7 +23,7 @@ pip install -r requirements.txt
 Kurulum: https://docs.docker.com/engine/install/ubuntu/
 
 ## Donanım Sürücüleri
-- Lidar: - Sonra doldurulacaktır ()
+- Lidar: - Sonra doldurulacaktır (RPLIDAR2 VEYA LDS01)
 - Arduino IDE: https://www.arduino.cc/en/software
 
 ## İşletim Sistemi

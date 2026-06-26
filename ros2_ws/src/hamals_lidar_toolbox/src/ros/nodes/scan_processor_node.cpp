@@ -56,7 +56,7 @@ ScanProcessorNode::ScanProcessorNode(const rclcpp::NodeOptions& options)
             std::bind(&ScanProcessorNode::scanCallback, this, _1));
 
     obstacle_state_pub_ =
-        this->create_publisher<hamals_lidar_msgs::msg::ObstacleState>(
+        this->create_publisher<hamals_interfaces::msg::ObstacleState>(
             "/scan/obstacle_state", 10);
 
     RCLCPP_INFO(
@@ -98,11 +98,11 @@ void ScanProcessorNode::scanCallback(
         }
     }
 
-    hamals_lidar_msgs::msg::ObstacleState out_msg;
+    hamals_interfaces::msg::ObstacleState out_msg;
 
     for (const auto& [region, state] : obstacle_map)
     {
-        hamals_lidar_msgs::msg::ObstacleRegionState r;
+        hamals_interfaces::msg::ObstacleRegionState r;
         r.region = region;
         r.has_obstacle = state.has_obstacle;
         r.min_distance = state.min_distance;

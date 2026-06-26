@@ -7,6 +7,7 @@ Otonom forklift robotu projesi. ROS2 Humble tabanlı, Raspberry Pi 5 üzerinde �
 | Paket | Açıklama |
 |---|---|
 | hamals_bringup | Robot başlatma ve orkestrasyon |
+| hamals_interfaces | Custom ROS2 mesaj tanımları |
 | hamals_lidar_toolbox | RPLIDAR S2 sürücü ve araçları |
 | hamals_localization | Robot lokalizasyonu |
 | hamals_manual_teleop | Manuel kontrol |
@@ -17,13 +18,21 @@ Otonom forklift robotu projesi. ROS2 Humble tabanlı, Raspberry Pi 5 üzerinde �
 
 ## Kurulum
 
+### Linux
 ```bash
 git clone https://github.com/...
 cd hamal_agv
 bash scripts/setup_ros2.sh
 bash scripts/aliases.sh
 ```
+Kurulum sonrası terminali yeniden başlat.
 
+### macOS (Conda)
+```bash
+conda env create -f environment.yml
+conda activate ros2
+bash scripts/aliases.sh
+```
 Kurulum sonrası terminali yeniden başlat.
 
 ## Kullanım
@@ -31,8 +40,11 @@ Kurulum sonrası terminali yeniden başlat.
 | Komut | Açıklama |
 |---|---|
 | `cbuild` | Workspace'i derler ve source eder |
-| `cdev` | Geliştirme container'ını başlatır (Mac & Linux) |
+| `cclean` | Build, install ve log klasörlerini temizler |
+| `cdev` | Geliştirme container'ını başlatır (Linux) |
 | `crobot` | Robot container'ını başlatır (sadece Pi'de) |
+
+> **macOS:** `cdev` yerine doğrudan Conda ortamında çalışın.
 
 ## Donanım
 

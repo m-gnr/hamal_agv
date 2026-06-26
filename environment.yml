@@ -1,0 +1,10 @@
+name: ros2
+channels:
+  - robostack-staging
+  - conda-forge
+dependencies:
+  - python=3.11
+  - cmake=3.26
+  - numpy
+  - pip:
+    - setuptools==58.2.0

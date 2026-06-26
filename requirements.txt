@@ -1,2 +1,2 @@
-# Python bağımlılıkları
-# Paketler eklendikçe buraya eklenecek
+setuptools==58.2.0
+numpy

@@ -9,18 +9,15 @@
   <maintainer email="m_gnr@icloud.com">m_gnr</maintainer>
   <license>Apache-2.0</license>
 
-  <!-- Build system -->
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <!-- Dependencies -->
-  <depend>hamals_lidar_msgs</depend>
+  <depend>hamals_interfaces</depend>
   <depend>rclcpp</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
   <depend>visualization_msgs</depend>
   <depend>geometry_msgs</depend>
 
-  <!-- Testing -->
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
 
