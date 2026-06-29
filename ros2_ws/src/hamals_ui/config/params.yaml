@@ -39,12 +39,27 @@ ui_bridge:
   log_buffer:    50     # max entries kept in state.logs
   msg_buffer:    20     # max entries kept in state.messages
 
+# Nodes currently implemented / expected to be running during competition
 expected_nodes:
-  - /hamals_robot_controller
+  - /ui_bridge_node
+  - /rosbridge_websocket
+  - /robot_state_publisher
+  - /slam_toolbox
+  - /scan_processor_node
+  - /serial_bridge
+  - /localization_node
+  - /nav2/controller_server
+  - /nav2/planner_server
   - /nav2/bt_navigator
-  - /hamals_plc_bridge
-  - /hamals_ui_bridge
-  - /hamals_mission_manager
-  - /scan_matcher
-  - /camera_front_node
-  - /camera_back_node
+  - /nav2/behavior_server
+  - /nav2/lifecycle_manager
+  - /manual_teleop_node
+
+# Nodes planned but not yet implemented — start as active:false in mock
+planned_nodes:
+  - /mission_manager
+  - /plc_bridge
+  - /safety_node
+  - /qr_node
+  - /line_follower_node
+  - /firmware_bridge

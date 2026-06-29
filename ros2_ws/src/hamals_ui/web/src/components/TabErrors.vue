@@ -305,7 +305,7 @@ watch(() => props.state, v => drawRadar(v), { deep: true })
 .nodes-summary { font-size: 12px; font-weight: 700; padding: 1px 10px; border-radius: 10px; }
 .summary-ok   { background: rgba(34,197,94,.12);  color: var(--green); }
 .summary-warn { background: rgba(245,165,36,.12); color: var(--amber); }
-.nodes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; }
+.nodes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; max-height: 140px; overflow-y: auto; }
 .node-item {
   display: flex; align-items: center; gap: 7px;
   padding: 5px 10px; border-radius: var(--radius-sm);

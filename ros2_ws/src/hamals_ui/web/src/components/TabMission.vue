@@ -27,18 +27,39 @@
           <span class="mock-only-badge">MOCK</span>
         </div>
       </template>
-      <div class="scenario-btns">
-        <button
-          v-for="sc in (s.meta?.scenarios || [])"
-          :key="sc"
-          :class="['scenario-btn', s.meta?.scenario === sc ? 'scenario-active' : '']"
-          @click="sendScenario(sc)"
-        >
-          {{ sc }}
-        </button>
+      <div class="scenario-row">
+        <div class="scenario-btns">
+          <button
+            v-for="sc in (s.meta?.scenarios || [])"
+            :key="sc"
+            :class="['scenario-btn', s.meta?.scenario === sc ? 'scenario-active' : '']"
+            @click="sendScenario(sc)"
+          >
+            {{ sc }}
+          </button>
+        </div>
+        <div class="playback-controls" v-if="s.meta?.scenario">
+          <button
+            v-if="playbackStatus !== 'playing'"
+            class="pb-btn pb-start"
+            @click="send('start_scenario', {})"
+          >
+            <Play :size="13" /> Başlat
+          </button>
+          <button
+            v-else
+            class="pb-btn pb-stop"
+            @click="send('stop_scenario', {})"
+          >
+            <Square :size="13" /> Durdur
+          </button>
+        </div>
       </div>
       <div v-if="s.meta?.scenario" class="scenario-info">
         Aktif: <strong>{{ s.meta.scenario }}</strong>
+        <span class="playback-status" :class="playbackStatus === 'playing' ? 'pb-playing' : 'pb-paused'">
+          {{ playbackStatus === 'playing' ? '▶ Oynatılıyor' : '⏸ Duraklatıldı' }}
+        </span>
       </div>
     </Card>
 
@@ -158,6 +179,7 @@ const FSM_CLS = {
 const DOOR_TR = { granted: 'VERİLDİ', waiting: 'BEKLİYOR', none: '—' }
 
 const fsmCls = computed(() => FSM_CLS[s.value.mission?.fsm] || 'fsm-dim')
+const playbackStatus = computed(() => s.value.meta?.playback_status || 'paused')
 const doorVariant = computed(() => {
   const d = s.value.plc?.door_permission
   return d === 'granted' ? 'success' : d === 'waiting' ? 'warn' : 'default'
@@ -256,7 +278,8 @@ function sendScenario(name) { emit('send-cmd', { type: 'scenario', name }) }
   font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px;
   background: rgba(245,165,36,.18); color: var(--amber); border: 1px solid rgba(245,165,36,.4);
 }
-.scenario-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.scenario-row    { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.scenario-btns   { display: flex; gap: 8px; flex-wrap: wrap; }
 .scenario-btn {
   padding: 5px 16px; border-radius: 10px; font-size: 12px; font-weight: 700;
   border: 1px solid var(--border); background: var(--panel-2); color: var(--text-dim);
@@ -267,6 +290,19 @@ function sendScenario(name) { emit('send-cmd', { type: 'scenario', name }) }
   background: rgba(59,130,246,.18) !important; color: var(--accent) !important;
   border-color: rgba(59,130,246,.5) !important;
 }
-.scenario-info { font-size: 11px; color: var(--text-dim); }
+.playback-controls { display: flex; gap: 6px; flex-shrink: 0; }
+.pb-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 14px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 700;
+  border: 1px solid; cursor: pointer; font-family: inherit; transition: all .15s;
+}
+.pb-start { background: rgba(34,197,94,.15); border-color: rgba(34,197,94,.5); color: var(--green); }
+.pb-start:hover { background: rgba(34,197,94,.28); }
+.pb-stop  { background: rgba(239,68,68,.12); border-color: rgba(239,68,68,.4); color: var(--red); }
+.pb-stop:hover  { background: rgba(239,68,68,.22); }
+.scenario-info { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-dim); }
 .scenario-info strong { color: var(--accent); }
+.playback-status { font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 8px; }
+.pb-playing { background: rgba(34,197,94,.15); color: var(--green); border: 1px solid rgba(34,197,94,.3); }
+.pb-paused  { background: rgba(245,165,36,.12); color: var(--amber); border: 1px solid rgba(245,165,36,.3); }
 </style>

@@ -6,15 +6,28 @@
 
 import { ref } from 'vue'
 
+// Matches params.yaml expected_nodes + planned_nodes
 const DEFAULT_NODES = [
-  { name: 'hamals_controller', active: true  },
-  { name: 'nav2_planner',      active: true  },
-  { name: 'plc_bridge',        active: false }, // starts disconnected
-  { name: 'ui_bridge',         active: true  },
-  { name: 'mission_mgr',       active: true  },
-  { name: 'scan_matcher',      active: true  },
-  { name: 'cam_front',         active: true  },
-  { name: 'cam_back',          active: true  },
+  { name: '/ui_bridge_node',         active: true  },
+  { name: '/rosbridge_websocket',    active: true  },
+  { name: '/robot_state_publisher',  active: true  },
+  { name: '/slam_toolbox',           active: true  },
+  { name: '/scan_processor_node',    active: true  },
+  { name: '/serial_bridge',          active: true  },
+  { name: '/localization_node',      active: true  },
+  { name: '/nav2/controller_server', active: true  },
+  { name: '/nav2/planner_server',    active: true  },
+  { name: '/nav2/bt_navigator',      active: true  },
+  { name: '/nav2/behavior_server',   active: true  },
+  { name: '/nav2/lifecycle_manager', active: true  },
+  { name: '/manual_teleop_node',     active: true  },
+  // Planned — not yet implemented
+  { name: '/mission_manager',        active: false },
+  { name: '/plc_bridge',             active: false },
+  { name: '/safety_node',            active: false },
+  { name: '/qr_node',                active: false },
+  { name: '/line_follower_node',     active: false },
+  { name: '/firmware_bridge',        active: false },
 ]
 
 // ── Senaryo 1: A2 → B1 (standart yarışma döngüsü) ────────────────────────────
@@ -22,7 +35,7 @@ const SCENARIO_1 = [
   {
     dt_s: 3, label: 'Sistem başlatılıyor',
     state: {
-      meta: { mode: 'mock', bridge_ok: true, scenario: 'senaryo1', scenarios: ['senaryo1', 'senaryo2'] },
+      meta: { mode: 'mock', bridge_ok: true, scenario: 'senaryo1', scenarios: ['senaryo1', 'senaryo2'], playback_status: 'playing' },
       connection: { robot: true, plc: false, rosbridge: true },
       switch: { mode: 'auto' },
       estop: { active: false, source: 'hw' },
@@ -36,6 +49,7 @@ const SCENARIO_1 = [
       sensors: { lidar: true, cam_front: true, cam_back: true, imu: true, encoder: true },
       safety: { estop: false, obstacle: 'safe', obstacle_distance_m: 3.0, system_health: 'normal', zones: { front: 'safe', left: 'safe', right: 'safe', back: 'safe' } },
       cameras: { active: 'front', front_url: 'http://robot:8081/stream?topic=/camera_front/image_raw', back_url: 'http://robot:8081/stream?topic=/camera_back/image_raw' },
+      lift: { height_pct: 0, moving: false },
       messages: [],
       errors: [],
       logs: [{ ts: '00:00:00', event: 'Sistem başlatıldı', dir: 'robot2plc' }],
@@ -183,22 +197,16 @@ const SCENARIO_1 = [
 ]
 
 // ── Senaryo 2: A3 → B3 (hata enjeksiyonlu varyant) ───────────────────────────
-const SCENARIO_2_NODES = [
-  { name: 'hamals_controller', active: true  },
-  { name: 'nav2_planner',      active: true  },
-  { name: 'plc_bridge',        active: false },
-  { name: 'ui_bridge',         active: true  },
-  { name: 'mission_mgr',       active: true  },
-  { name: 'scan_matcher',      active: false }, // başta pasif
-  { name: 'cam_front',         active: true  },
-  { name: 'cam_back',          active: true  },
-]
+// Same as DEFAULT_NODES but scan_processor starts offline (encoder error scenario)
+const SCENARIO_2_NODES = DEFAULT_NODES.map(n =>
+  n.name === '/scan_processor_node' ? { ...n, active: false } : { ...n }
+)
 
 const SCENARIO_2 = [
   {
     dt_s: 3, label: '[S2] Sistem başlatılıyor',
     state: {
-      meta: { mode: 'mock', bridge_ok: true, scenario: 'senaryo2', scenarios: ['senaryo1', 'senaryo2'] },
+      meta: { mode: 'mock', bridge_ok: true, scenario: 'senaryo2', scenarios: ['senaryo1', 'senaryo2'], playback_status: 'playing' },
       connection: { robot: true, plc: false, rosbridge: true },
       switch: { mode: 'auto' },
       estop: { active: false, source: 'hw' },
@@ -212,6 +220,7 @@ const SCENARIO_2 = [
       sensors: { lidar: true, cam_front: true, cam_back: true, imu: true, encoder: false }, // encoder başta off
       safety: { estop: false, obstacle: 'safe', obstacle_distance_m: 3.0, system_health: 'warn', zones: { front: 'safe', left: 'safe', right: 'safe', back: 'safe' } },
       cameras: { active: 'front', front_url: 'http://robot:8081/stream?topic=/camera_front/image_raw', back_url: 'http://robot:8081/stream?topic=/camera_back/image_raw' },
+      lift: { height_pct: 0, moving: false },
       messages: [],
       errors: [{ code: 'E01', ts: '00:00:00', text: 'Enkoder başlatılamadı' }],
       logs: [{ ts: '00:00:00', event: '[S2] Sistem başlatıldı (enkoder uyarısı)', dir: 'robot2plc' }],
@@ -347,6 +356,7 @@ export function useMockData() {
   const state = ref(null)
   let activeScenario = 'senaryo1'
   let stepIdx = 0
+  let paused = false
   let stepStart = Date.now()
   let timer = null
 
@@ -382,7 +392,7 @@ export function useMockData() {
   }
 
   function tick() {
-    if (!state.value) return
+    if (!state.value || paused) return
     const now = Date.now()
     const steps = SCENARIOS[activeScenario]
     const step = steps[stepIdx]
@@ -398,7 +408,12 @@ export function useMockData() {
     activeScenario = name
     stepIdx = 0
     stepStart = Date.now()
+    paused = true
     applyStep(SCENARIOS[name][0])
+    if (state.value) {
+      state.value.meta.scenario = name
+      state.value.meta.playback_status = 'paused'
+    }
   }
 
   function handleCmd(cmd) {
@@ -408,6 +423,18 @@ export function useMockData() {
       case 'teleop':
         s.pose.speed = Math.abs(cmd.payload?.linear || 0)
         break
+      case 'lift': {
+        const action = cmd.payload?.action
+        if (!s.lift) s.lift = { height_pct: 0, moving: false }
+        if (action === 'up') {
+          s.lift.height_pct = Math.min(100, s.lift.height_pct + 10)
+          s.lift.moving = true
+        } else if (action === 'down') {
+          s.lift.height_pct = Math.max(0, s.lift.height_pct - 10)
+          s.lift.moving = true
+        }
+        break
+      }
       case 'estop':
         s.mission.fsm = 'emergency_stop'
         s.estop.active = true
@@ -429,10 +456,21 @@ export function useMockData() {
       case 'scenario':
         setScenario(cmd.name)
         break
+      case 'start_scenario':
+        paused = false
+        stepStart = Date.now()
+        if (state.value) state.value.meta.playback_status = 'playing'
+        if (!timer) timer = setInterval(tick, 200)
+        break
+      case 'stop_scenario':
+        paused = true
+        if (state.value) state.value.meta.playback_status = 'paused'
+        break
     }
   }
 
   function start() {
+    paused = false
     applyStep(SCENARIOS[activeScenario][0])
     timer = setInterval(tick, 200)
   }

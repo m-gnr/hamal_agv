@@ -27,7 +27,14 @@ from std_msgs.msg import String
 # ─────────────────────────────────────────────────────────────
 def _default_state() -> Dict[str, Any]:
     return {
-        "meta": {"mode": "live", "ts": 0.0, "bridge_ok": True},
+        "meta": {
+            "mode": "live",
+            "ts": 0.0,
+            "bridge_ok": True,
+            "scenarios": [],
+            "scenario": "",
+            "playback_status": "paused",
+        },
         "connection": {"robot": False, "plc": False, "rosbridge": True},
         "switch": {"mode": "auto"},
         "estop": {"active": False, "source": "hw"},
@@ -76,6 +83,8 @@ def _default_state() -> Dict[str, Any]:
             "front_url": "",
             "back_url": ""
         },
+        "lift": {"height_pct": 0, "moving": False},
+        "nodes": [],
         "messages": [],
         "errors": [],
         "logs": []
@@ -162,7 +171,7 @@ class UIBridgeNode(Node):
 
         self._params = _load_yaml(os.path.join(cfg_dir, "params.yaml"))
         self._bridge_cfg = _load_yaml(os.path.join(cfg_dir, "bridge.yaml"))
-        self._scenario = _load_yaml(os.path.join(cfg_dir, "scenario.yaml"))
+        self._scenario_cfg = _load_yaml(os.path.join(cfg_dir, "scenario.yaml"))
 
         # ROS param 'mode' (launch'tan) verilmişse params.yaml'ı geçersiz kılar
         self.declare_parameter("mode", "")
@@ -174,7 +183,7 @@ class UIBridgeNode(Node):
         self._msg_buf = int(ui_cfg.get("msg_buffer", 20))
 
         cam_cfg = self._params.get("camera", {})
-        vvs_host = self._params.get("camera", {}).get("web_video_server_host", "robot")
+        vvs_host = cam_cfg.get("web_video_server_host", "robot")
         vvs_port = cam_cfg.get("web_video_server_port", 8081)
         self._cam_front_url = (
             f"http://{vvs_host}:{vvs_port}/stream"
@@ -190,6 +199,9 @@ class UIBridgeNode(Node):
         self._state["meta"]["mode"] = self._mode
         self._state["cameras"]["front_url"] = self._cam_front_url
         self._state["cameras"]["back_url"] = self._cam_back_url
+
+        # Node list from config
+        self._build_nodes_list()
 
         # ROS publishers / subscribers
         self._state_pub = self.create_publisher(String, "/ui/state", 10)
@@ -209,6 +221,32 @@ class UIBridgeNode(Node):
             f"ui_bridge_node started — mode={self._mode} "
             f"@ {self._publish_hz:.0f} Hz"
         )
+
+    # ─────────────────────────────────────────────────────────
+    # Node list
+    # ─────────────────────────────────────────────────────────
+    def _build_nodes_list(self):
+        """Build initial nodes list from params.yaml."""
+        expected = self._params.get("expected_nodes", [])
+        planned = set(self._params.get("planned_nodes", []))
+        self._state["nodes"] = [
+            {"name": n, "active": n not in planned}
+            for n in (expected + list(planned))
+        ]
+
+    def _update_nodes_live(self):
+        """Refresh node active status by querying ROS graph (live mode only)."""
+        try:
+            live_nodes = set(self.get_node_names_and_namespaces())
+            # get_node_names_and_namespaces returns list of (name, namespace) tuples
+            live_full = {
+                (ns.rstrip("/") + "/" + n) if ns != "/" else "/" + n
+                for n, ns in live_nodes
+            }
+        except Exception:
+            return
+        for node in self._state["nodes"]:
+            node["active"] = node["name"] in live_full
 
     # ─────────────────────────────────────────────────────────
     # LIVE MODE
@@ -235,7 +273,6 @@ class UIBridgeNode(Node):
                 self._topic_offline_key[topic] = offline_key
                 _set_nested(self._state, offline_key, False)
 
-            # closure to capture per-topic config
             def make_cb(t=topic, f=fields, ok=offline_key):
                 def cb(msg):
                     self._on_topic(t, msg, f, ok)
@@ -247,6 +284,8 @@ class UIBridgeNode(Node):
 
         # Heartbeat check: mark sensors offline if not heard recently
         self.create_timer(2.0, self._check_topic_health)
+        # Node status refresh (every 5 s is enough)
+        self.create_timer(5.0, self._update_nodes_live)
 
     def _on_topic(self, topic: str, msg, fields: list, offline_key: str):
         self._topic_last_seen[topic] = time.time()
@@ -259,7 +298,6 @@ class UIBridgeNode(Node):
             if not msg_field or not state_key:
                 continue
 
-            # Special: raw JSON string topics
             if state_key.startswith("_") and state_key.endswith("_json"):
                 raw = getattr(msg, "data", "")
                 if raw:
@@ -274,7 +312,6 @@ class UIBridgeNode(Node):
             if val is not None:
                 _set_nested(self._state, state_key, val)
 
-        # Compute heading from odom quaternion if available
         if topic == "/odom":
             try:
                 q = msg.pose.pose.orientation
@@ -288,7 +325,6 @@ class UIBridgeNode(Node):
         self._state["connection"]["robot"] = True
 
     def _apply_json_topic(self, key: str, data: dict):
-        """Route parsed JSON from String topics into state sub-trees."""
         if key == "_mission_json":
             _deep_merge(self._state["mission"], data)
         elif key == "_nav_json":
@@ -308,7 +344,6 @@ class UIBridgeNode(Node):
             last = self._topic_last_seen.get(topic, 0.0)
             alive = (now - last) < 3.0
             _set_nested(self._state, ok_key, alive)
-        # Robot connection = any topic alive in last 3s
         any_alive = any(
             (now - t) < 3.0 for t in self._topic_last_seen.values()
         )
@@ -319,12 +354,36 @@ class UIBridgeNode(Node):
     # ─────────────────────────────────────────────────────────
     def _setup_mock(self):
         self._state["meta"]["mode"] = "mock"
-        scenario = self._scenario.get("scenario", {})
-        self._mock_steps = scenario.get("steps", [])
-        self._mock_loop = scenario.get("loop", True)
-        self._mock_speed = float(scenario.get("speed", 1.0))
+
+        # Read multi-scenario YAML
+        scenarios_cfg = self._scenario_cfg.get("scenarios", {})
+        default_name = self._scenario_cfg.get("default", next(iter(scenarios_cfg), "senaryo1"))
+
+        self._mock_scenarios = scenarios_cfg
+        self._mock_scenario_names = list(scenarios_cfg.keys())
+        self._mock_active = default_name
+        self._mock_paused = False
         self._mock_idx = 0
         self._mock_step_start = time.time()
+
+        active_scen = self._mock_scenarios.get(self._mock_active, {})
+        self._mock_steps = active_scen.get("steps", [])
+        self._mock_loop = active_scen.get("loop", True)
+        self._mock_speed = float(active_scen.get("speed", 1.0))
+
+        # Populate nodes: expected=active, planned=inactive
+        expected = self._params.get("expected_nodes", [])
+        planned = set(self._params.get("planned_nodes", []))
+        self._state["nodes"] = [
+            {"name": n, "active": True} for n in expected
+        ] + [
+            {"name": n, "active": False} for n in planned
+        ]
+
+        # Meta
+        self._state["meta"]["scenarios"] = self._mock_scenario_names
+        self._state["meta"]["scenario"] = self._mock_active
+        self._state["meta"]["playback_status"] = "playing"
 
         if self._mock_steps:
             self._apply_mock_step(self._mock_steps[0])
@@ -332,7 +391,7 @@ class UIBridgeNode(Node):
         self.create_timer(0.1, self._tick_mock)
 
     def _tick_mock(self):
-        if not self._mock_steps:
+        if self._mock_paused or not self._mock_steps:
             return
         now = time.time()
         step = self._mock_steps[self._mock_idx]
@@ -342,10 +401,6 @@ class UIBridgeNode(Node):
             if self._mock_idx >= len(self._mock_steps):
                 if self._mock_loop:
                     self._mock_idx = 0
-                    self._state = _default_state()
-                    self._state["meta"]["mode"] = "mock"
-                    self._state["cameras"]["front_url"] = self._cam_front_url
-                    self._state["cameras"]["back_url"] = self._cam_back_url
                 else:
                     self._mock_idx = len(self._mock_steps) - 1
                     return
@@ -353,21 +408,69 @@ class UIBridgeNode(Node):
             self._apply_mock_step(self._mock_steps[self._mock_idx])
 
     def _apply_mock_step(self, step: dict):
+        # Full or partial state merge
         overlay = step.get("state", {})
-        _deep_merge(self._state, overlay)
-        # keep connection fields alive
+        if overlay:
+            _deep_merge(self._state, overlay)
+
+        # Dot-notation patch (e.g. patch: {'mission.fsm': 'idle'})
+        for dotkey, val in step.get("patch", {}).items():
+            _set_nested(self._state, dotkey, val)
+
+        # List prepend (e.g. push: {messages: {ts: ..., text: ...}})
+        for listname, item in step.get("push", {}).items():
+            if isinstance(self._state.get(listname), list):
+                self._state[listname].insert(0, item)
+
+        # Node partial updates (e.g. nodesPatch: {'/plc_bridge': True})
+        for node_name, active in step.get("nodesPatch", {}).items():
+            for n in self._state["nodes"]:
+                if n["name"] == node_name:
+                    n["active"] = active
+                    break
+
+        # Keep connection alive
         self._state["connection"]["robot"] = True
         self._state["connection"]["rosbridge"] = True
-        # update mission timer
+
+        # Sync mission timer
         elapsed = self._state["mission"].get("elapsed_s", 0)
         self._state["mission"]["timer"] = {
             "elapsed_s": elapsed,
             "target_s": self._params.get("mission", {}).get("target_min", 30) * 60,
             "limit_s": self._params.get("mission", {}).get("limit_min", 45) * 60,
         }
-        # truncate buffers
+
+        # Truncate buffers
         self._state["messages"] = self._state["messages"][-self._msg_buf:]
         self._state["logs"] = self._state["logs"][-self._log_buf:]
+
+        # Keep camera URLs
+        self._state["cameras"]["front_url"] = self._cam_front_url
+        self._state["cameras"]["back_url"] = self._cam_back_url
+
+    def _switch_scenario(self, name: str):
+        """Select a scenario and reset to step 0 (paused)."""
+        if name not in self._mock_scenarios:
+            self.get_logger().warn(f"Unknown scenario: {name}")
+            return
+        self._mock_active = name
+        self._mock_idx = 0
+        self._mock_step_start = time.time()
+        self._mock_paused = True
+
+        active_scen = self._mock_scenarios[name]
+        self._mock_steps = active_scen.get("steps", [])
+        self._mock_loop = active_scen.get("loop", True)
+        self._mock_speed = float(active_scen.get("speed", 1.0))
+
+        self._state["meta"]["scenario"] = name
+        self._state["meta"]["playback_status"] = "paused"
+
+        if self._mock_steps:
+            self._apply_mock_step(self._mock_steps[0])
+
+        self.get_logger().info(f"Scenario selected (paused): {name}")
 
     # ─────────────────────────────────────────────────────────
     # /ui/cmd handler
@@ -386,28 +489,71 @@ class UIBridgeNode(Node):
             self._handle_teleop(payload)
         elif cmd_type == "lift":
             self._handle_lift(payload)
+        elif cmd_type == "estop":
+            self._handle_estop()
+        elif cmd_type == "estop_ack":
+            self._state["estop"]["active"] = False
+            self._state["mission"]["fsm"] = "idle"
+            self._state["mission"]["step"] = "Acil durum temizlendi — hazır"
+            if self._mode == "mock":
+                self._mock_paused = False
+                self._state["meta"]["playback_status"] = "playing"
+            self.get_logger().warn("E-STOP acknowledged via UI")
+        elif cmd_type == "scenario":
+            if self._mode == "mock":
+                self._switch_scenario(cmd.get("name", ""))
+            else:
+                self.get_logger().info(f"CMD: scenario (live no-op) name={cmd.get('name')}")
+        elif cmd_type == "start_scenario":
+            if self._mode == "mock":
+                self._mock_paused = False
+                self._mock_step_start = time.time()
+                self._state["meta"]["playback_status"] = "playing"
+                self.get_logger().info("Scenario playback started")
+            else:
+                self.get_logger().info("CMD: start_scenario (live no-op)")
+        elif cmd_type == "stop_scenario":
+            if self._mode == "mock":
+                self._mock_paused = True
+                self._state["meta"]["playback_status"] = "paused"
+                self.get_logger().info("Scenario playback stopped")
+        elif cmd_type == "switch_mode":
+            mode_val = payload if isinstance(payload, str) else payload.get("mode", "")
+            if not mode_val:
+                mode_val = cmd.get("payload", "")
+            if mode_val in ("manual", "auto"):
+                self._state["switch"]["mode"] = mode_val
+                self.get_logger().info(f"Switch mode → {mode_val}")
+            else:
+                self.get_logger().warn(f"CMD: switch_mode unknown value: {mode_val!r}")
         elif cmd_type == "connect_plc":
             self.get_logger().info("CMD: connect_plc (no-op: plc package not yet present)")
         elif cmd_type == "set_ready":
             self.get_logger().info("CMD: set_ready (no-op: mission_manager not yet present)")
         elif cmd_type == "mapping":
-            self.get_logger().info(f"CMD: mapping action={payload.get('action')}")
+            self.get_logger().info(f"CMD: mapping action={payload.get('action') if isinstance(payload, dict) else payload}")
         elif cmd_type == "define_route":
             self.get_logger().info("CMD: define_route (no-op)")
-        elif cmd_type == "estop_ack":
-            self._state["estop"]["active"] = False
-            self.get_logger().warn("E-STOP acknowledged via UI")
         else:
             self.get_logger().warn(f"Unknown /ui/cmd type: {cmd_type}")
 
+    def _handle_estop(self):
+        self._state["estop"]["active"] = True
+        self._state["mission"]["fsm"] = "emergency_stop"
+        self._state["pose"]["speed"] = 0.0
+        self._state["mission"]["step"] = "ACİL DURDURMA — yazılımsal"
+        if self._mode == "mock":
+            self._mock_paused = True
+            self._state["meta"]["playback_status"] = "paused"
+        self.get_logger().error("E-STOP activated via UI")
+
     def _handle_teleop(self, payload: dict):
+        if not isinstance(payload, dict):
+            return
         linear = float(payload.get("linear", 0.0))
         angular = float(payload.get("angular", 0.0))
-        # Guard: only allow teleop when switch is manual
         if self._state["switch"]["mode"] != "manual":
-            self.get_logger().warn(
-                "Teleop rejected: switch is not in MANUAL mode"
-            )
+            self.get_logger().warn("Teleop rejected: switch is not in MANUAL mode")
             return
         if self._mode == "live":
             from geometry_msgs.msg import Twist
@@ -415,17 +561,25 @@ class UIBridgeNode(Node):
             tw.linear.x = linear
             tw.angular.z = angular
             if not hasattr(self, "_cmd_vel_pub"):
-                self._cmd_vel_pub = self.create_publisher(
-                    Twist, "/cmd_vel", 10
-                )
+                self._cmd_vel_pub = self.create_publisher(Twist, "/cmd_vel", 10)
             self._cmd_vel_pub.publish(tw)
         else:
             self._state["pose"]["speed"] = abs(linear)
 
     def _handle_lift(self, payload: dict):
-        action = payload.get("action", "")
+        action = payload.get("action", "") if isinstance(payload, dict) else payload
+        lift = self._state.setdefault("lift", {"height_pct": 0, "moving": False})
+        step = 10
+        if action == "up":
+            lift["height_pct"] = min(100, lift["height_pct"] + step)
+            lift["moving"] = True
+        elif action == "down":
+            lift["height_pct"] = max(0, lift["height_pct"] - step)
+            lift["moving"] = True
+        else:
+            lift["moving"] = False
         self.get_logger().info(
-            f"CMD: lift action={action} (no-op: firmware cmd not yet wired)"
+            f"CMD: lift action={action} height_pct={lift['height_pct']}"
         )
 
     # ─────────────────────────────────────────────────────────
@@ -433,13 +587,11 @@ class UIBridgeNode(Node):
     # ─────────────────────────────────────────────────────────
     def _publish_state(self):
         self._state["meta"]["ts"] = time.time()
-        # Battery ETA estimate (simple)
         batt = self._state["battery"]
         if batt["current"] > 0.1:
             cap_wh = batt["voltage"] * 10.0
             power_w = batt["voltage"] * batt["current"]
             batt["eta_min"] = int(cap_wh * (batt["percent"] / 100.0) * 60.0 / power_w)
-        # Battery status threshold
         batt["status"] = "critical" if batt["percent"] < 10 else (
             "low" if batt["percent"] < 20 else "normal"
         )
