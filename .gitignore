@@ -11,9 +11,14 @@ __pycache__/
 .eggs/
 
 # Geliştirme ortamı
+.claude
 .vscode/
 .idea/
 *.user
+
+# Web
+node_modules/
+dist/
 
 # OS
 .DS_Store

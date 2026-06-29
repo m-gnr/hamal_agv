@@ -1,0 +1,118 @@
+# hamals_ui bridge.yaml
+# Maps raw ROS topics → /ui/state JSON fields.
+# Adding a new data source = adding an entry here, zero Python changes.
+#
+# Each entry:
+#   topic:   ROS topic name
+#   type:    ROS message type  (package/MsgName)
+#   fields:  list of { msg_field: "...", state_key: "...", default: <value> }
+#             msg_field supports dot-notation (e.g. "pose.pose.position.x")
+#   offline_key:  state key set to true/false when topic is seen/missing (optional)
+#   qos:          best_effort | reliable  (default: best_effort)
+
+sources:
+
+  # ── Odometry / Pose ────────────────────────────────────────────────────
+  - topic: /odom
+    type: nav_msgs/Odometry
+    qos: best_effort
+    offline_key: sensors.encoder
+    fields:
+      - { msg_field: "pose.pose.position.x",    state_key: "pose.x",       default: 0.0 }
+      - { msg_field: "pose.pose.position.y",    state_key: "pose.y",       default: 0.0 }
+      - { msg_field: "twist.twist.linear.x",    state_key: "pose.speed",   default: 0.0 }
+
+  # ── IMU ────────────────────────────────────────────────────────────────
+  - topic: /imu/data
+    type: sensor_msgs/Imu
+    qos: best_effort
+    offline_key: sensors.imu
+    fields:
+      - { msg_field: "angular_velocity.z",      state_key: "pose.omega",   default: 0.0 }
+
+  # ── Battery ────────────────────────────────────────────────────────────
+  - topic: /battery/state
+    type: sensor_msgs/BatteryState
+    qos: best_effort
+    fields:
+      - { msg_field: "percentage",  state_key: "battery.percent",  default: 100.0 }
+      - { msg_field: "voltage",     state_key: "battery.voltage",  default: 24.0  }
+      - { msg_field: "current",     state_key: "battery.current",  default: 0.0   }
+
+  # ── LiDAR health ────────────────────────────────────────────────────────
+  - topic: /scan
+    type: sensor_msgs/LaserScan
+    qos: best_effort
+    offline_key: sensors.lidar
+    fields: []    # presence-only; no field extraction needed
+
+  # ── Camera health (front) ───────────────────────────────────────────────
+  - topic: /camera_front/image_raw
+    type: sensor_msgs/Image
+    qos: best_effort
+    offline_key: sensors.cam_front
+    fields: []
+
+  # ── Camera health (back) ────────────────────────────────────────────────
+  - topic: /camera_back/image_raw
+    type: sensor_msgs/Image
+    qos: best_effort
+    offline_key: sensors.cam_back
+    fields: []
+
+  # ── Physical E-Stop / switch ────────────────────────────────────────────
+  # Published by firmware via serial_bridge (topic may not exist yet)
+  - topic: /estop
+    type: std_msgs/Bool
+    qos: reliable
+    fields:
+      - { msg_field: "data", state_key: "estop.active", default: false }
+
+  - topic: /switch/mode
+    type: std_msgs/String
+    qos: reliable
+    fields:
+      - { msg_field: "data", state_key: "switch.mode", default: "auto" }
+
+  # ── Mission / FSM ───────────────────────────────────────────────────────
+  # Published by mission_manager (not yet implemented — stays offline)
+  - topic: /mission/state
+    type: std_msgs/String
+    qos: reliable
+    fields:
+      - { msg_field: "data", state_key: "_mission_json", default: "" }
+
+  # ── Navigation goal / feedback ──────────────────────────────────────────
+  - topic: /nav/status
+    type: std_msgs/String
+    qos: best_effort
+    fields:
+      - { msg_field: "data", state_key: "_nav_json", default: "" }
+
+  # ── QR result ───────────────────────────────────────────────────────────
+  - topic: /qr/result
+    type: std_msgs/String
+    qos: reliable
+    fields:
+      - { msg_field: "data", state_key: "_qr_json", default: "" }
+
+  # ── Line follower ────────────────────────────────────────────────────────
+  - topic: /line/status
+    type: std_msgs/String
+    qos: best_effort
+    fields:
+      - { msg_field: "data", state_key: "_line_json", default: "" }
+
+  # ── PLC bridge ───────────────────────────────────────────────────────────
+  - topic: /plc/status
+    type: std_msgs/String
+    qos: reliable
+    fields:
+      - { msg_field: "data", state_key: "_plc_json", default: "" }
+
+  # ── Safety / obstacle ────────────────────────────────────────────────────
+  - topic: /safety/status
+    type: std_msgs/String
+    qos: best_effort
+    fields:
+      - { msg_field: "data", state_key: "_safety_json", default: "" }

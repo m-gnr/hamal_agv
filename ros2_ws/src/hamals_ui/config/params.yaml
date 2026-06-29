@@ -1,0 +1,50 @@
+# hamals_ui — runtime parameters
+# mode: live  → subscribe real ROS topics
+#        mock  → play scenario.yaml, never subscribe
+mode: mock
+
+rosbridge:
+  host: 0.0.0.0
+  port: 9090
+
+web:
+  host: 0.0.0.0
+  port: 8080
+
+camera:
+  front_topic: /camera_front/image_raw
+  back_topic:  /camera_back/image_raw
+  web_video_server_port: 8081
+  web_video_server_host: robot    # overridden by env on real robot
+
+tolerances:
+  path_deviation_cm: 10.0
+  position_cm:        7.5
+  heading_deg:        5.0
+  max_load_kg:        5.0
+
+mission:
+  target_min: 30
+  limit_min:  45
+
+network:
+  plc_ip:    192.168.1.50
+  plc_port:  502
+  protocol:  tcp_modbus
+  wifi_ssid: "YARISMA AGI"
+
+ui_bridge:
+  publish_hz:    10.0   # /ui/state publish rate
+  map_hz:         1.0   # /ui/map  publish rate (throttled)
+  log_buffer:    50     # max entries kept in state.logs
+  msg_buffer:    20     # max entries kept in state.messages
+
+expected_nodes:
+  - /hamals_robot_controller
+  - /nav2/bt_navigator
+  - /hamals_plc_bridge
+  - /hamals_ui_bridge
+  - /hamals_mission_manager
+  - /scan_matcher
+  - /camera_front_node
+  - /camera_back_node

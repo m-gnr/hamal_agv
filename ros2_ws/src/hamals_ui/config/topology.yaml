@@ -1,0 +1,52 @@
+# hamals_ui topology.yaml
+# Yarışma alanı topoloji grafiği (Şartname Şekil-1).
+# Koordinatlar şimdilik pixel-based (canvas 800x600).
+# Metrik (metre) koordinatlar SLAM sonrası eklenecek.
+
+# --- Düğüm noktaları ---
+nodes:
+  - { id: START, label: "Başlangıç",   x: 100, y: 300, type: start }
+  - { id: D1,    label: "D1",          x: 200, y: 300, type: junction }
+  - { id: D2,    label: "D2",          x: 350, y: 300, type: junction }
+  - { id: D3,    label: "D3",          x: 500, y: 300, type: junction }
+  - { id: DOOR,  label: "KAPI",        x: 580, y: 300, type: door }
+  - { id: D4,    label: "D4",          x: 650, y: 300, type: junction }
+  - { id: D5,    label: "D5",          x: 650, y: 420, type: junction }
+  - { id: D6,    label: "D6",          x: 650, y: 180, type: junction }
+  - { id: A1,    label: "A1 (Alma)",   x: 200, y: 160, type: pickup }
+  - { id: A2,    label: "A2 (Alma)",   x: 350, y: 160, type: pickup }
+  - { id: A3,    label: "A3 (Alma)",   x: 500, y: 160, type: pickup }
+  - { id: B1,    label: "B1 (Bırak)",  x: 750, y: 420, type: dropoff }
+  - { id: B2,    label: "B2 (Bırak)",  x: 750, y: 300, type: dropoff }
+  - { id: B3,    label: "B3 (Bırak)",  x: 750, y: 180, type: dropoff }
+
+# --- QR işaret noktaları ---
+qr_markers:
+  - { id: q1, label: "q1", node: D1,   desc: "Başlangıç → D1" }
+  - { id: q2, label: "q2", node: A1,   desc: "D1 → A1" }
+  - { id: q3, label: "q3", node: A2,   desc: "D2 → A2" }
+  - { id: q4, label: "q4", node: A3,   desc: "D3 → A3" }
+  - { id: q5, label: "q5", node: DOOR, desc: "Kapı öncesi (D3 tarafı)" }
+  - { id: q6, label: "q6", node: DOOR, desc: "Kapı sonrası (D4 tarafı)" }
+  - { id: q7, label: "q7", node: B3,   desc: "D6 → B3" }
+  - { id: q8, label: "q8", node: B2,   desc: "D4 → B2" }
+  - { id: q9, label: "q9", node: B1,   desc: "D5 → B1" }
+
+# --- Kenarlar (yollar) ---
+edges:
+  # Ana koridor (yatay)
+  - { from: START, to: D1,   type: corridor }
+  - { from: D1,    to: D2,   type: corridor }
+  - { from: D2,    to: D3,   type: corridor }
+  - { from: D3,    to: DOOR, type: corridor }
+  - { from: DOOR,  to: D4,   type: corridor, door_controlled: true }
+  # Alma kolları (yukarı)
+  - { from: D1,    to: A1,   type: arm }
+  - { from: D2,    to: A2,   type: arm }
+  - { from: D3,    to: A3,   type: arm }
+  # Bırakma kolları (sağ)
+  - { from: D4,    to: B2,   type: arm }
+  - { from: D4,    to: D5,   type: corridor }
+  - { from: D5,    to: B1,   type: arm }
+  - { from: D4,    to: D6,   type: corridor }
+  - { from: D6,    to: B3,   type: arm }

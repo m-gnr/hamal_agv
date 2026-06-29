@@ -1,0 +1,193 @@
+# hamals_ui scenario.yaml
+# Birden fazla mock senaryo tanımlar.
+# ui_bridge_node mode:mock ile bu dosyayı oynatır.
+# dt_s: bir sonraki adıma geçmeden önce beklenecek saniye
+
+default: senaryo1
+
+scenarios:
+
+  # ── Senaryo 1: A2 → B1 (standart yarışma döngüsü) ────────────────────────
+  senaryo1:
+    loop: true
+    speed: 1.0
+    steps:
+      - label: "Sistem başlatılıyor"
+        dt_s: 3
+        state:
+          mission: { id: "25", fsm: idle, pickup: "", dropoff: "", step: "Sistem başlatılıyor", elapsed_s: 0 }
+          battery: { percent: 92, voltage: 24.8, current: 1.2, eta_min: 180, status: normal }
+          pose:    { x: 0.10, y: 0.10, theta_deg: 0.0, speed: 0.0, path_deviation_cm: 0.0 }
+          nav:     { mode: nav2, current_goal: "", total_distance_m: 0.0, remaining_m: 0.0 }
+          plc:     { connected: false, signal: 0, door_permission: none, last_msg: "" }
+          switch:  { mode: auto }
+          estop:   { active: false, source: hw }
+          qr:      { id: "", status: none }
+          line:    { detected: false, status: tracking }
+          sensors: { lidar: true, cam_front: true, cam_back: true, imu: true, encoder: true }
+          safety:  { estop: false, obstacle: safe, obstacle_distance_m: 3.0, system_health: normal,
+                     zones: { front: safe, left: safe, right: safe, back: safe } }
+          cameras: { active: front }
+          errors:  []
+          messages: []
+          logs:    [ { ts: "00:00:00", event: "Sistem başlatıldı", dir: "robot2plc" } ]
+
+      - label: "PLC bağlandı"
+        dt_s: 3
+        state:
+          mission: { fsm: waiting_plc, step: "PLC bağlantısı kuruldu", elapsed_s: 7 }
+          plc:     { connected: true, ip: "192.168.1.50", port: 502, signal: 4,
+                     last_msg: "Bağlantı kuruldu", door_permission: none }
+          messages: [ { ts: "00:00:07", dir: "plc2robot", text: "Bağlantı kuruldu" } ]
+
+      - label: "Görev alındı — A2'ye git"
+        dt_s: 2
+        state:
+          mission: { fsm: task_processing, pickup: A2, dropoff: B1, step: "Görev alındı: A2 → B1", elapsed_s: 10 }
+          nav:     { mode: nav2, current_goal: A2, total_distance_m: 18.5, remaining_m: 18.5 }
+          messages: [ { ts: "00:00:10", dir: "plc2robot", text: "Görev: A2→B1" } ]
+
+      - label: "Boş hareket"
+        dt_s: 5
+        state:
+          mission: { fsm: moving_empty, step: "D2 düğümüne ilerleniyor", elapsed_s: 16 }
+          pose:    { x: 2.8, y: 0.1, theta_deg: 1.5, speed: 0.45, path_deviation_cm: 2.1 }
+          nav:     { remaining_m: 9.8 }
+          battery: { percent: 90, current: 3.8 }
+
+      - label: "QR3 okundu"
+        dt_s: 3
+        state:
+          mission: { step: "q3 QR kodu okundu", elapsed_s: 24 }
+          pose:    { x: 3.45, y: 1.1, theta_deg: 89.5, speed: 0.08, path_deviation_cm: 1.2 }
+          qr:      { id: q3, x: -0.05, y: 0.12, angle_deg: -1.8, distance_m: 0.38, status: read }
+          nav:     { mode: line_follow, remaining_m: 0.4 }
+          messages: [ { ts: "00:00:24", dir: "robot2plc", text: "q3 okundu — çizgi takibine geçiliyor" } ]
+
+      - label: "Yük alındı — yüklü hareket"
+        dt_s: 5
+        state:
+          mission: { fsm: moving_loaded, step: "Yük alındı — B1'e gidiliyor", elapsed_s: 34 }
+          nav:     { mode: nav2, current_goal: B1, remaining_m: 14.0 }
+          cameras: { active: back }
+          messages: [ { ts: "00:00:34", dir: "robot2plc", text: "Yük alındı — B1'e gidiliyor" } ]
+
+      - label: "Kapı izni verildi"
+        dt_s: 4
+        state:
+          mission: { step: "Kapı geçiş izni verildi", elapsed_s: 52 }
+          pose:    { x: 5.6, y: 0.1, theta_deg: 0.0, speed: 0.25 }
+          plc:     { door_permission: granted, last_msg: "Kapı geçiş izni verildi" }
+          messages: [ { ts: "00:00:52", dir: "plc2robot", text: "Kapı geçiş izni verildi" } ]
+
+      - label: "Yük bırakıldı B1"
+        dt_s: 3
+        state:
+          mission: { fsm: task_processing, step: "Yük B1'e bırakıldı", elapsed_s: 69 }
+          cameras: { active: front }
+          messages: [ { ts: "00:01:09", dir: "robot2plc", text: "Görev tamamlandı: A2→B1" } ]
+
+      - label: "Eve dönüş"
+        dt_s: 8
+        state:
+          mission: { fsm: returning_home, step: "Başlangıç noktasına dönülüyor", elapsed_s: 72 }
+          nav:     { mode: nav2, current_goal: START, remaining_m: 12.0 }
+          pose:    { x: 5.0, y: 0.1, theta_deg: 180.0, speed: 0.45 }
+          battery: { percent: 85, current: 3.9 }
+
+      - label: "Başlangıca döndü"
+        dt_s: 5
+        state:
+          mission: { fsm: idle, step: "Başlangıç noktasında bekliyor", elapsed_s: 85, pickup: "", dropoff: "" }
+          pose:    { x: 0.1, y: 0.1, theta_deg: 0.0, speed: 0.0 }
+          nav:     { current_goal: "", remaining_m: 0.0 }
+          battery: { percent: 84, current: 1.1, eta_min: 160 }
+          messages: [ { ts: "00:01:25", dir: "robot2plc", text: "Döngü tamamlandı — bekleniyor" } ]
+
+  # ── Senaryo 2: A3 → B3 (hata enjeksiyonlu varyant) ───────────────────────
+  senaryo2:
+    loop: true
+    speed: 1.0
+    steps:
+      - label: "[S2] Sistem başlatılıyor (enkoder uyarısı)"
+        dt_s: 3
+        state:
+          mission: { id: "26", fsm: idle, pickup: "", dropoff: "", step: "[S2] Sistem başlatılıyor", elapsed_s: 0 }
+          battery: { percent: 78, voltage: 24.1, current: 1.0, eta_min: 130, status: normal }
+          pose:    { x: 0.10, y: 0.10, theta_deg: 0.0, speed: 0.0, path_deviation_cm: 0.0 }
+          nav:     { mode: nav2, current_goal: "", total_distance_m: 0.0, remaining_m: 0.0 }
+          plc:     { connected: false, signal: 0, door_permission: none, last_msg: "" }
+          switch:  { mode: auto }
+          estop:   { active: false, source: hw }
+          qr:      { id: "", status: none }
+          line:    { detected: false, status: tracking }
+          sensors: { lidar: true, cam_front: true, cam_back: true, imu: true, encoder: false }
+          safety:  { estop: false, obstacle: safe, obstacle_distance_m: 3.0, system_health: warn,
+                     zones: { front: safe, left: safe, right: safe, back: safe } }
+          cameras: { active: front }
+          errors:  [ { code: "E01", ts: "00:00:00", text: "Enkoder başlatılamadı" } ]
+          messages: []
+          logs:    [ { ts: "00:00:00", event: "[S2] Enkoder uyarısı", dir: "robot2plc" } ]
+
+      - label: "[S2] Enkoder kurtarıldı"
+        dt_s: 3
+        state:
+          mission: { step: "Enkoder kurtarıldı — PLC bekleniyor", elapsed_s: 3 }
+          sensors: { encoder: true }
+          safety:  { system_health: normal }
+          errors:  []
+
+      - label: "[S2] PLC bağlandı"
+        dt_s: 3
+        state:
+          mission: { fsm: waiting_plc, step: "[S2] PLC bağlantısı kuruldu", elapsed_s: 6 }
+          plc:     { connected: true, ip: "192.168.1.50", port: 502, signal: 3, last_msg: "Bağlantı kuruldu" }
+          messages: [ { ts: "00:00:06", dir: "plc2robot", text: "Bağlantı kuruldu" } ]
+
+      - label: "[S2] Görev: A3→B3"
+        dt_s: 2
+        state:
+          mission: { fsm: task_processing, pickup: A3, dropoff: B3, step: "Görev alındı: A3 → B3", elapsed_s: 9 }
+          nav:     { mode: nav2, current_goal: A3, total_distance_m: 21.2, remaining_m: 21.2 }
+          messages: [ { ts: "00:00:09", dir: "plc2robot", text: "Görev: A3→B3" } ]
+
+      - label: "[S2] Engel algılandı"
+        dt_s: 4
+        state:
+          mission: { fsm: moving_empty, step: "UYARI: Engel algılandı — bekliyor", elapsed_s: 19 }
+          pose:    { x: 3.8, y: 0.1, theta_deg: 0.5, speed: 0.0 }
+          safety:  { obstacle: danger, obstacle_distance_m: 0.4, zones: { front: danger, left: safe, right: safe, back: safe } }
+
+      - label: "[S2] Engel geçildi, yük alındı"
+        dt_s: 5
+        state:
+          mission: { fsm: moving_loaded, step: "Yük alındı (A3) — B3'e gidiliyor", elapsed_s: 34 }
+          pose:    { x: 4.9, y: 0.1, theta_deg: 0.0, speed: 0.42 }
+          safety:  { obstacle: safe, obstacle_distance_m: 2.5, zones: { front: safe, left: safe, right: safe, back: safe } }
+          nav:     { mode: nav2, current_goal: B3, remaining_m: 11.0 }
+          cameras: { active: back }
+          messages: [ { ts: "00:00:34", dir: "robot2plc", text: "Yük alındı (A3) — B3'e gidiliyor" } ]
+
+      - label: "[S2] Yük bırakıldı B3"
+        dt_s: 3
+        state:
+          mission: { fsm: task_processing, step: "Yük B3'e bırakıldı", elapsed_s: 49 }
+          cameras: { active: front }
+          plc:     { last_msg: "Görev onaylandı (A3→B3)" }
+          messages: [ { ts: "00:00:49", dir: "robot2plc", text: "Görev tamamlandı: A3→B3" } ]
+
+      - label: "[S2] Eve dönüş"
+        dt_s: 5
+        state:
+          mission: { fsm: returning_home, step: "Başlangıç noktasına dönülüyor", elapsed_s: 52 }
+          nav:     { mode: nav2, current_goal: START, remaining_m: 14.0 }
+          pose:    { x: 5.0, theta_deg: 180.0, speed: 0.45 }
+
+      - label: "[S2] Başlangıca döndü"
+        dt_s: 4
+        state:
+          mission: { fsm: idle, step: "[S2] Döngü tamamlandı", elapsed_s: 62, pickup: "", dropoff: "" }
+          pose:    { x: 0.1, y: 0.1, theta_deg: 0.0, speed: 0.0 }
+          nav:     { current_goal: "", remaining_m: 0.0 }
+          battery: { percent: 70, current: 1.0, eta_min: 100 }
+          messages: [ { ts: "00:01:02", dir: "robot2plc", text: "[S2] Döngü tamamlandı" } ]
