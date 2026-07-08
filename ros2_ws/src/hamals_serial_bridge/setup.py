@@ -20,7 +20,7 @@ setup(
         (os.path.join('share', package_name, 'config'),
             glob('config/*.yaml')),
     ],
-    install_requires=['setuptools'],
+    install_requires=['setuptools', 'pyserial'],
     zip_safe=True,
     maintainer='m-gnr',
     maintainer_email='m_gnr@icloud.com',

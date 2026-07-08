@@ -16,6 +16,8 @@ Topics:
   cmd_vel           : {cfg.cmd_vel_topic}
   wheel_ticks       : {cfg.wheel_ticks_topic}
   imu               : {cfg.imu_topic}
+  mcu_fork_cmd      : {cfg.mcu_fork_cmd_topic}
+  mcu_fork_state    : {cfg.mcu_fork_state_topic}
 
 Frames:
   imu_frame_id      : {cfg.imu_frame_id}

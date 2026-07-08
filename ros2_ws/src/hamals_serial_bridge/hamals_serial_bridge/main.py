@@ -7,13 +7,14 @@ import rclpy
 from rclpy.node import Node
 
 from geometry_msgs.msg import Twist
-from hamals_interfaces.msg import WheelTicks
+from hamals_interfaces.msg import ForkState, WheelTicks
 from sensor_msgs.msg import Imu
+from std_msgs.msg import String
 
 import serial
 
 from .parser import LineParser
-from .protocol import encode_cmd
+from .protocol import encode_cmd, encode_fork_cmd
 
 from .helpers.config_loader import load_config
 from .helpers.debug_panels import (
@@ -73,9 +74,22 @@ class SerialBridgeNode(Node):
             10
         )
 
+        self.fork_cmd_sub = self.create_subscription(
+            String,
+            self.cfg.mcu_fork_cmd_topic,
+            self.fork_cmd_callback,
+            10
+        )
+
         self.wheel_ticks_pub = self.create_publisher(
             WheelTicks,
             self.cfg.wheel_ticks_topic,
+            10
+        )
+
+        self.fork_state_pub = self.create_publisher(
+            ForkState,
+            self.cfg.mcu_fork_state_topic,
             10
         )
 
@@ -259,6 +273,16 @@ class SerialBridgeNode(Node):
 
         self._maybe_send_cmd(v, w, force=False)
 
+    def fork_cmd_callback(self, msg: String):
+        cmd = msg.data.strip().upper()
+
+        if cmd not in ("UP", "DOWN", "STOP"):
+            self.get_logger().warn(f"Invalid fork command: {cmd}")
+            return
+
+        frame = encode_fork_cmd(cmd).encode('utf-8')
+        self._serial_write(frame)
+
     # =====================================================
     # MCU → ROS
     # =====================================================
@@ -305,6 +329,9 @@ class SerialBridgeNode(Node):
         elif msg_type == 'imu':
             self._publish_imu(msg)
 
+        elif msg_type == 'fork_state':
+            self._publish_fork_state(msg)
+
     # =====================================================
     # ENC → /wheel_ticks
     # =====================================================
@@ -323,6 +350,27 @@ class SerialBridgeNode(Node):
             ticks_msg.dl,
             ticks_msg.dr,
         )
+
+    # =====================================================
+    # FORK_STATE → /mcu/fork_state
+    # =====================================================
+    def _publish_fork_state(self, msg: dict):
+        out = ForkState()
+        out.stamp = self.get_clock().now().to_msg()
+        out.t_us = int(msg.get('t_us', 0))
+        out.state = int(msg.get('state', ForkState.IDLE))
+        out.error_code = int(msg.get('error_code', ForkState.ERROR_NONE))
+        out.upper_limit = bool(msg.get('upper_limit', False))
+        out.lower_limit = bool(msg.get('lower_limit', False))
+        out.is_moving = out.state in (
+            ForkState.MOVING_UP,
+            ForkState.MOVING_DOWN,
+        )
+        # last_command hamals_fork_node tarafında tutulur.
+        # Serial bridge sadece MCU state bilgisini taşır.
+        out.last_command = ForkState.CMD_NONE
+
+        self.fork_state_pub.publish(out)
 
     # =====================================================
     # IMU → /imu/data

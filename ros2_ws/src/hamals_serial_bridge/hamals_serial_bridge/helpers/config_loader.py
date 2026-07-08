@@ -17,6 +17,8 @@ class SerialBridgeConfig:
     cmd_vel_topic: str
     wheel_ticks_topic: str
     imu_topic: str
+    mcu_fork_cmd_topic: str
+    mcu_fork_state_topic: str
 
     # Frames
     imu_frame_id: str
@@ -51,6 +53,8 @@ def declare_parameters(node: Node) -> None:
     node.declare_parameter('cmd_vel_topic', '/cmd_vel')
     node.declare_parameter('wheel_ticks_topic', '/wheel_ticks')
     node.declare_parameter('imu_topic', '/imu/data')
+    node.declare_parameter('mcu_fork_cmd_topic', '/mcu/fork_cmd')
+    node.declare_parameter('mcu_fork_state_topic', '/mcu/fork_state')
 
     node.declare_parameter('imu_frame_id', 'imu_link')
 
@@ -83,6 +87,8 @@ def load_config(node: Node) -> SerialBridgeConfig:
         cmd_vel_topic=str(node.get_parameter('cmd_vel_topic').value),
         wheel_ticks_topic=str(node.get_parameter('wheel_ticks_topic').value),
         imu_topic=str(node.get_parameter('imu_topic').value),
+        mcu_fork_cmd_topic=str(node.get_parameter('mcu_fork_cmd_topic').value),
+        mcu_fork_state_topic=str(node.get_parameter('mcu_fork_state_topic').value),
 
         imu_frame_id=str(node.get_parameter('imu_frame_id').value),
 

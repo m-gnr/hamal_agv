@@ -5,9 +5,7 @@
 # ======================================================
 
 def compute_checksum(payload: str) -> int:
-    """
-    XOR checksum of payload (no $, no *).
-    """
+    """Compute XOR checksum of payload without frame delimiters."""
     cs = 0
     for c in payload:
         cs ^= ord(c)
@@ -19,12 +17,18 @@ def compute_checksum(payload: str) -> int:
 # ======================================================
 
 def encode_cmd(v: float, w: float) -> str:
-    """
-    Encode cmd_vel to framed protocol:
-
-      $CMD,v,w*CS\n
-    """
+    """Encode cmd_vel to framed protocol."""
+    # Format: $CMD,v,w*CS\n
     payload = f"CMD,{v:.3f},{w:.3f}"
+    cs = compute_checksum(payload)
+    return f"${payload}*{cs:02X}\n"
+
+
+def encode_fork_cmd(cmd: str) -> str:
+    """Encode fork command to framed protocol."""
+    # Format: $FORK,UP*CS\n, $FORK,DOWN*CS\n, or $FORK,STOP*CS\n
+    cmd = cmd.strip().upper()
+    payload = f"FORK,{cmd}"
     cs = compute_checksum(payload)
     return f"${payload}*{cs:02X}\n"
 
@@ -41,8 +45,8 @@ def decode_line(line: str):
       $ENC,t_us,dl,dr*CS
       $IMU,t_us,gz,ax,ay,az*CS
       $ODOM,t_us,x,y,yaw,v,w*CS (legacy)
+      $FORK_STATE,t_us,state,upper,lower,error*CS
     """
-
     if not line:
         return None
 
@@ -96,6 +100,15 @@ def decode_line(line: str):
                 "yaw": float(parts[4]),
                 "v": float(parts[5]),
                 "w": float(parts[6]),
+            }
+        elif parts[0] == "FORK_STATE" and len(parts) == 6:
+            return {
+                "type": "fork_state",
+                "t_us": int(parts[1]),
+                "state": int(parts[2]),
+                "upper_limit": bool(int(parts[3])),
+                "lower_limit": bool(int(parts[4])),
+                "error_code": int(parts[5]),
             }
         else:
             return None
