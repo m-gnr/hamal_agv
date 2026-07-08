@@ -17,12 +17,12 @@ setup(
     zip_safe=True,
     maintainer='murat',
     maintainer_email='m_gnr@icloud.com',
-    description='TODO: Package description',
+    description='Timer-based fork control node for Hamal AGV',
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'fork_node = hamals_fork.fork_node:main',
+            'fork_node = hamals_fork.main:main',
         ],
     },
 )
