@@ -7,17 +7,23 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
+find_package(builtin_interfaces REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   # msg
   "msg/ObstacleRegionState.msg"
   "msg/ObstacleState.msg"
+
+  "msg/ForkCommand.msg"
+  "msg/ForkState.msg"
   
   # srv
   # "srv/OrneSrv.srv"
   
   # action
   # "action/OrneAction.action"
+
+  DEPENDENCIES builtin_interfaces
 )
 
 ament_export_dependencies(rosidl_default_runtime)
