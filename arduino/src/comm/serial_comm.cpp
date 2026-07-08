@@ -37,6 +37,8 @@ static bool hexNibble(char c, uint8_t& out) {
 void SerialComm::begin(unsigned long baud) {
     (void)baud;
     last_cmd_.valid = false;
+    last_cmd_time_ms_ = 0;
+    cmd_received_ = false;
 }
 
 void SerialComm::update() {
@@ -132,6 +134,8 @@ void SerialComm::parsePayload(const char* payload) {
             last_cmd_.v = v;
             last_cmd_.w = w;
             last_cmd_.valid = true;
+            last_cmd_time_ms_ = millis();
+            cmd_received_ = true;
         }
     }
 }
@@ -143,6 +147,15 @@ bool SerialComm::hasCmdVel() const {
 CmdVel SerialComm::getCmdVel() {
     last_cmd_.valid = false;
     return last_cmd_;
+}
+
+bool SerialComm::isCmdWatchdogTimedOut(uint32_t now_ms,
+                                       uint32_t timeout_ms) const {
+    if (!cmd_received_) {
+        return false;
+    }
+
+    return now_ms - last_cmd_time_ms_ > timeout_ms;
 }
 
 void SerialComm::sendEnc(uint32_t t_us, int32_t dl, int32_t dr) {

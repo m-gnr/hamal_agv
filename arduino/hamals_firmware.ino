@@ -194,11 +194,27 @@ void loop() {
 
     static float v_target = 0.0f;
     static float w_target = 0.0f;
+    static bool base_motion_active = false;
 
     if (serial.hasCmdVel()) {
         const CmdVel cmd = serial.getCmdVel();
         v_target = cmd.v;
         w_target = cmd.w;
+        base_motion_active =
+            fabs(v_target) >= 0.01f || fabs(w_target) >= 0.01f;
+    }
+
+    if (base_motion_active &&
+        serial.isCmdWatchdogTimedOut(millis(), CMD_WATCHDOG_TIMEOUT_MS)) {
+        v_target = 0.0f;
+        w_target = 0.0f;
+        base_motion_active = false;
+        velocityCmd.reset();
+        pidL.reset();
+        pidR.reset();
+        motorL.stop();
+        motorR.stop();
+        return;
     }
 
     if (fabs(v_target) < 0.01f && fabs(w_target) < 0.01f) {

@@ -8,6 +8,9 @@
   <license>TODO: License declaration</license>
 
   <depend>hamals_interfaces</depend>
+  <depend>ament_index_python</depend>
+  <depend>launch</depend>
+  <depend>launch_ros</depend>
   <depend>nav_msgs</depend>
   <depend>rclpy</depend>
   <depend>std_msgs</depend>

@@ -4,6 +4,7 @@ from std_msgs.msg import String
 
 from hamals_interfaces.msg import ForkCommand, ForkState
 from hamals_fork.fork_controller import ForkController
+from hamals_fork.fork_keepalive import ForkKeepalive
 from hamals_fork.fork_states import error_name, state_name
 from hamals_fork.helpers.config_loader import declare_fork_parameters, load_fork_config
 from hamals_fork.helpers.log_helpers import log_fork_config
@@ -16,6 +17,7 @@ class ForkNode(Node):
         declare_fork_parameters(self)
         self.config = load_fork_config(self)
         self.controller = ForkController(self.config.mcu_state_timeout_ms)
+        self.keepalive = ForkKeepalive()
 
         self.fork_state_pub = self.create_publisher(
             ForkState,
@@ -43,6 +45,11 @@ class ForkNode(Node):
 
         timer_period_s = 1.0 / self.config.state_publish_hz
         self.timer = self.create_timer(timer_period_s, self.timer_callback)
+        keepalive_period_s = self.config.keepalive_period_ms / 1000.0
+        self.keepalive_timer = self.create_timer(
+            keepalive_period_s,
+            self.keepalive_timer_callback,
+        )
 
         if self.config.debug:
             log_fork_config(self.get_logger(), self.config)
@@ -60,11 +67,13 @@ class ForkNode(Node):
                 self.get_logger().warning(f"Invalid fork command: {msg.command}")
         else:
             self.publish_mcu_command(mcu_cmd)
+            self.keepalive.record_published_command(mcu_cmd)
 
         self.publish_state()
 
     def mcu_state_callback(self, msg: ForkState) -> None:
         self.controller.update_from_mcu_state(msg)
+        self.keepalive.update_from_mcu_state(self.controller.state)
         if self.config.debug:
             self.get_logger().debug(
                 "MCU fork state: "
@@ -78,7 +87,14 @@ class ForkNode(Node):
 
     def timer_callback(self) -> None:
         self.controller.update()
+        if self.controller.state == ForkState.ERROR:
+            self.keepalive.stop()
         self.publish_state()
+
+    def keepalive_timer_callback(self) -> None:
+        command = self.keepalive.command_to_publish()
+        if command is not None:
+            self.publish_mcu_command(command)
 
     def publish_mcu_command(self, command: str) -> None:
         msg = String()

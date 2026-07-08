@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 // -------------------- Wheel & Encoder ------------------
 
 // Wheel radius in meters
@@ -43,6 +45,10 @@ constexpr float MAX_ANGULAR_RAD_S = 1.5f;
 constexpr float CONTROL_DT_S = 0.01f;      // 10 ms
 
 // -------------------- Command Timeout -----------------
+
+// MCU-side base motion watchdog. This protects against ROS/serial/cable loss
+// after a non-zero CMD frame has started base motion.
+constexpr uint32_t CMD_WATCHDOG_TIMEOUT_MS = 500;
 
 // Maximum allowed time without new cmd_vel (seconds)
 constexpr float CMD_VEL_GRACE_S   = 0.3f;  // soft zone

@@ -1,3 +1,8 @@
+# Root-level accidental colcon artifacts
+/build/
+/install/
+/log/
+
 # ROS2 workspace
 ros2_ws/build/
 ros2_ws/install/

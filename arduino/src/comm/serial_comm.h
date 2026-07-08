@@ -19,6 +19,8 @@ public:
 
     bool hasCmdVel() const;
     CmdVel getCmdVel();   // returns last cmd and clears valid flag
+    bool isCmdWatchdogTimedOut(uint32_t now_ms,
+                               uint32_t timeout_ms) const;
 
     // MCU -> ROS telemetry (custom serial protocol)
     // $ENC,t_us,dl,dr*CS\n
@@ -40,6 +42,8 @@ private:
     size_t payload_len_ = 0;
 
     CmdVel last_cmd_;
+    uint32_t last_cmd_time_ms_ = 0;
+    bool cmd_received_ = false;
 
     // Internal helpers
     void processChar(char c);
@@ -47,4 +51,3 @@ private:
 
 
 };
-

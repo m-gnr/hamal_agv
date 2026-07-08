@@ -12,6 +12,7 @@ import yaml
 def launch_setup(context, *args, **kwargs):
     bringup_share = get_package_share_directory('hamals_bringup')
     serial_bridge_share = get_package_share_directory('hamals_serial_bridge')
+    odometry_share = get_package_share_directory('hamals_odometry')
 
     config_file = os.path.join(bringup_share, 'config', 'robot_io.yaml')
 
@@ -24,6 +25,12 @@ def launch_setup(context, *args, **kwargs):
     serial_bridge_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(serial_bridge_share, 'launch', 'serial_bridge.launch.py')
+        )
+    )
+
+    odometry_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(odometry_share, 'launch', 'odometry.launch.py')
         )
     )
 
@@ -42,6 +49,7 @@ def launch_setup(context, *args, **kwargs):
 
     return [
         serial_bridge_launch,
+        odometry_launch,
         lidar_node,
     ]
 

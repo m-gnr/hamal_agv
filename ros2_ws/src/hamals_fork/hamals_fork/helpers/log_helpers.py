@@ -8,6 +8,7 @@ def log_fork_config(logger, config) -> None:
                 f"  mcu_fork_cmd_topic: {config.mcu_fork_cmd_topic}",
                 f"  mcu_fork_state_topic: {config.mcu_fork_state_topic}",
                 f"  mcu_state_timeout_ms: {config.mcu_state_timeout_ms}",
+                f"  keepalive_period_ms: {config.keepalive_period_ms}",
                 f"  state_publish_hz: {config.state_publish_hz}",
                 f"  stop_on_shutdown: {config.stop_on_shutdown}",
                 f"  debug: {config.debug}",
