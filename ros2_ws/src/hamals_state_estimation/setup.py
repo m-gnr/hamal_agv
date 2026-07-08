@@ -2,7 +2,7 @@ from setuptools import setup
 import os
 from glob import glob
 
-package_name = 'hamals_localization'
+package_name = 'hamals_state_estimation'
 
 setup(
     name=package_name,
@@ -42,8 +42,8 @@ setup(
     maintainer_email='m_gnr@icloud.com',
 
     description=(
-        'hamals_localization: '
-        'EKF-based odom fusion layer (robot_localization). '
+        'hamals_state_estimation: '
+        'EKF-based state estimation layer (robot_localization). '
         'Publishes TF (odom -> base_footprint) and /odom for SLAM/Nav2.'
     ),
 

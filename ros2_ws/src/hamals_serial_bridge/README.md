@@ -1,215 +1,254 @@
 # HAMALS Serial Bridge
 
-> ROS2 ile gömülü MCU firmware arasında güvenli ve katmanlı seri haberleşme köprüsü.
-> 
+> ROS 2 ile gömülü MCU firmware arasında checksum'lu seri haberleşme köprüsü.
 
-hamals_serial_bridge, diferansiyel sürüşlü mobil robotlarda ROS 2 ekosistemi ile mikrodenetleyici firmware’i arasında kontrollü ve güvenli bağlantı sağlayan modüler bir middleware katmanıdır.
+`hamals_serial_bridge`, HAMALS AGV üzerinde ROS 2 graph'ı ile MCU firmware arasındaki seri haberleşme sınırını yönetir. Bu paket yalnızca veri köprüsüdür; encoder verisinden diferansiyel sürüş kinematiği veya odometri hesabı yapmaz.
+
+Odometri hesabı ayrı paket olan `hamals_odometry` içindedir.
 
 ## Amaç
 
-Bu paket iki farklı dünyayı birbirine bağlar
+Bu paket aşağıdaki işleri üstlenir:
 
-### ROS 2 Tarafı
+- Seri port bağlantısını açmak ve yönetmek
+- MCU reset akışını isteğe bağlı olarak DTR üzerinden yapmak
+- ROS `/cmd_vel` mesajlarını MCU protokolüne encode edip seri hatta yazmak
+- MCU'dan gelen checksum'lu frame'leri parse etmek
+- `$IMU,t_us,gz,ax,ay,az*CS` frame'lerini `/imu/data` mesajına çevirmek
+- `$ENC,t_us,dl,dr*CS` frame'lerini ham `/wheel_ticks` mesajına çevirmek
+- Dead-man timeout, cmd_vel deduplication ve rate-limit güvenliklerini uygulamak
+- Debug modunda RX/TX sayaçlarını raporlamak
 
-- NAV2
-- Teleop
-- EKF / robot_localization
-- RViz
-- TF sistemi
+Bu paket şu işleri yapmaz:
 
-### MCU Tarafı
+- Encoder kinematiği hesaplamaz
+- `/odom_raw` yayınlamaz
+- Pose integration yapmaz
+- TF yayınlamaz
 
-- Encoder ISR
-- IMU polling
-- PID kontrol
-- Odometry hesaplama
-- Watchdog fail-safe
-
-Serial bridge, ROS ile firmware arasında **system boundary** oluşturur ve veri akışını doğrulamalı (checksum’lu) şekilde yönetir.
-
-# Mimari
+## Mimari
 
 ```
 [ ROS Graph Layer ]
         |
-[ SerialBridge Node ]
+[ hamals_serial_bridge ]
         |
-[ Framed Protocol Layer ]
+[ Framed Serial Protocol ]
         |
 [ Embedded Firmware ]
 ```
 
-## Tasarım İlkeleri
-
-- Tek sorumluluk prensibi
-- Katmanlı mimari
-- Config-driven yapı
-- Thread-safe TX (lock korumalı)
-- Framed + checksum’lu protokol
-- Dead-man güvenlik mekanizması
-- Parser istatistikleri
-- Nav2 uyumlu covariance
-
 ## Veri Akışı
 
-### **ROS → MCU**
+### ROS -> MCU
 
 ```
-Twist → encode_cmd() → framed packet → serial.write()
+/cmd_vel
+   |
+Twist
+   |
+encode_cmd()
+   |
+$CMD,v,w*CS
+   |
+serial.write()
 ```
 
-/cmd_vel mesajı MCU protokolüne çevirerek seri hat üzerinden gönderilir.
+`/cmd_vel` mesajındaki `linear.x` ve `angular.z` değerleri MCU'nun beklediği `$CMD,v,w*CS` formatına çevrilir.
 
-### MCU → ROS
-
-```
-serial.read → LineParser → checksum verify → publish(Odometry)
-```
-
-MCU’dan gelen odometri verisi ayrıştırılır ve ROS nav_msg /Odometry mesajına dönüştürülür.
-
-## Paket Yapısı
+### MCU -> ROS: Encoder
 
 ```
-hamals_serial_bridge/
-├── config/serial_bridge.yaml
-├── hamals_serial_bridge/
-│   ├── parser.py
-│   ├── protocol.py
-│   ├── serial_node.py
-│   ├── utils.py
-├── launch/serial_bridge.launch.py
-├── test/test_parser.py
+$ENC,t_us,dl,dr*CS
+   |
+LineParser
+   |
+WheelTicks
+   |
+/wheel_ticks
 ```
+
+`t_us`, `dl` ve `dr` alanları hiçbir kinematik hesap yapılmadan `hamals_interfaces/msg/WheelTicks` mesajına aktarılır.
+
+`WheelTicks.header.stamp`, bridge'in publish anındaki ROS clock değeriyle doldurulur. Bu alan debug ve latency gözlemi içindir; odometri dt hesabı için kullanılmaz.
+
+### MCU -> ROS: IMU
+
+```
+$IMU,t_us,gz,ax,ay,az*CS
+   |
+LineParser
+   |
+sensor_msgs/Imu
+   |
+/imu/data
+```
+
+IMU mesajında orientation bilinmediği için `orientation_covariance[0] = -1.0` olarak yayınlanır. Linear acceleration yayını `publish_linear_accel` parametresiyle açılıp kapatılabilir.
+
+## Topic'ler
+
+### Subscribe
+
+| Topic | Tip | Açıklama |
+| --- | --- | --- |
+| `/cmd_vel` | `geometry_msgs/msg/Twist` | MCU'ya gönderilecek hız komutu |
+
+### Publish
+
+| Topic | Tip | Açıklama |
+| --- | --- | --- |
+| `/wheel_ticks` | `hamals_interfaces/msg/WheelTicks` | MCU'dan gelen ham encoder delta verisi |
+| `/imu/data` | `sensor_msgs/msg/Imu` | MCU'dan gelen IMU passthrough verisi |
+
+## WheelTicks Mesajı
+
+```text
+std_msgs/Header header
+uint32 t_us
+int32 dl
+int32 dr
+```
+
+Alanlar:
+
+- `header.stamp`: Bridge'in publish anındaki ROS zamanı
+- `t_us`: MCU `micros()` zaman damgası
+- `dl`: Sol encoder delta tick
+- `dr`: Sağ encoder delta tick
 
 ## Konfigürasyon
 
-```yaml
-  ros__parameters:
+Varsayılan launch dosyası şu config dosyasını kullanır:
 
+```text
+config/serial_bridge.yaml
+```
+
+Örnek:
+
+```yaml
+/**:
+  ros__parameters:
     port: /dev/ttyACM0
-    baudrate: 115200
+    baudrate: 230400
     timeout_ms: 50
 
     cmd_vel_topic: /cmd_vel
-    odom_topic: /odom
-    odom_pub_hz: 50
+    wheel_ticks_topic: /wheel_ticks
+    imu_topic: /imu/data
+    imu_frame_id: imu_link
 
-    frame_id: odom
-    child_frame_id: base_link
-
-    pose_covariance: [ ... 36 elements ... ]
-    twist_covariance: [ ... 36 elements ... ]
+    publish_linear_accel: true
+    imu_ang_vel_cov_diag: [9999.0, 9999.0, 0.005]
+    imu_lin_acc_cov_diag: [0.01, 9999.0, 9999.0]
 
     reset_on_startup: true
     reset_pulse_ms: 100
     reset_boot_wait_ms: 1500
 
     cmd_vel_timeout_ms: 500
-    debug: true
+    cmd_vel_rate_limit_hz: 25
+    cmd_dedup_enabled: true
+    cmd_dedup_eps_v: 0.02
+    cmd_dedup_eps_w: 0.05
+    cmd_force_resend_ms: 300
+
+    debug: false
 ```
 
-## Güvenlik Mekanizması
+## Güvenlik Mekanizmaları
 
-Belirli süre içinde /cmd_vel alınmazsa:
+### Dead-man Timeout
 
-```yaml
-CMD 0.000 0.000
+Belirli süre boyunca `/cmd_vel` alınmazsa bridge MCU'ya zorunlu stop komutu gönderir:
+
+```text
+$CMD,0.000,0.000*CS
 ```
 
-gönderilir ve robot durdurulur.
+Bu mekanizma teleop, Nav2 veya üst seviye kontrol node'ları durduğunda robotun hareket komutu almaya devam etmesini engeller.
 
-Bu durumlarda runaway robotr engellenir.
+### Rate-limit
 
-- WiFi kopması
-- Teleop çökmesi
-- Nav2 hatası
-- Node kapanması
+`cmd_vel_rate_limit_hz`, seri hatta gönderilecek komut frekansını sınırlar. Stop ve hareket arasındaki geçişler kritik kabul edilir ve rate-limit'e takılmadan gönderilir.
 
-## Framed Seri Protokol
+### Deduplication
 
-**ROS → MCU**
+`cmd_dedup_enabled` açıksa önceki komuta göre anlamlı fark taşımayan hız komutları tekrar gönderilmez. `cmd_force_resend_ms` süresi dolduğunda aynı komut periyodik olarak yeniden gönderilebilir.
 
-```yaml
-CMD <linear_velocity> <angular_velocity>
-```
+## Seri Protokol
 
-Örnek:
+### ROS -> MCU
 
-```
-$CMD,0.200,0.000*5A
-```
-
-### MCU → ROS
-
-```yaml
-odom,x,y,yaw,v,w
+```text
+$CMD,v,w*CS
 ```
 
 Örnek:
 
-```
-$ODOM,1.23,0.45,0.12,0.20,0.00*3F
+```text
+$CMD,0.200,0.000*CS
 ```
 
-Invalid checksum türünde frame’ler parser tarafından discard edilir.
+### MCU -> ROS
+
+Encoder:
+
+```text
+$ENC,t_us,dl,dr*CS
+```
+
+IMU:
+
+```text
+$IMU,t_us,gz,ax,ay,az*CS
+```
+
+Checksum algoritması `protocol.py` içinde XOR checksum olarak uygulanır. Invalid checksum taşıyan frame'ler parser tarafından discard edilir.
 
 ## Thread Modeli
 
-- ROS callback ana thread
-- Serial RX ayrı daemon thread
-- TX lock ile thread-safe write
-- Parser realign + framed recovery
+- ROS callback'leri rclpy executor thread'inde çalışır
+- Serial RX ayrı daemon thread içinde çalışır
+- TX işlemleri lock ile korunur
+- Parser byte/frame istatistiklerini tutar
 
 ## Debug Modu
 
-debug: true ise:
+`debug: true` ise 1 Hz hızında debug paneli loglanır:
 
-- RX bytes
-- RX valid frames
-- RX invalid frames
-- TX packets
-- Odom publish count
-- Dead-man state
-- Son cmd_vel
-- Son odom
-
-1 saniyede bir terminalde gösterilir.
+- TX packet sayısı
+- Dedup ve rate-limit nedeniyle atlanan komut sayısı
+- RX byte sayısı
+- Geçerli/geçersiz frame sayısı
+- `/wheel_ticks` publish sayısı
+- Dead-man durumu
+- Son `/cmd_vel`
+- Son `WheelTicks`
 
 ## Kullanım
 
 Build:
 
-```yaml
-colcon build --packages-select hamals_serial_bridge
+```bash
+colcon build --packages-select hamals_interfaces hamals_serial_bridge
 source install/setup.bash
 ```
 
 Launch:
 
-```yaml
+```bash
 ros2 launch hamals_serial_bridge serial_bridge.launch.py
 ```
 
-## Ekosistem
+Farklı config dosyasıyla launch:
 
-Bu paket, HAMALS robot yazılım mimarisinin bir parçasıdır.
-
-Bağlantılı olduğu firmware:
-
-- **[hamals_firmware](https://github.com/m-gnr/hamals_firmware)**  
-  Diferansiyel sürüşlü robot için MCU tabanlı gerçek zamanlı kontrol katmanı.
-
+```bash
+ros2 launch hamals_serial_bridge serial_bridge.launch.py config:=/path/to/serial_bridge.yaml
 ```
-            ┌────────────────────────────┐
-            │        ROS 2 Layer         │
-            │  Nav2 | EKF | RViz | TF    │
-            └───────────────┬────────────┘
-                            │
-                  hamals_serial_bridge
-                            │
-            ┌───────────────┴────────────┐
-            │       hamals_firmware      │
-            │  PID | IMU | Encoder | Odom│
-            └────────────────────────────┘
-```
+
+## İlgili Paketler
+
+- `hamals_interfaces`: `WheelTicks` mesaj tanımını içerir.
+- `hamals_odometry`: `/wheel_ticks` dinler, MCU `t_us` farkından dt hesaplar ve `/odom_raw` yayınlar.

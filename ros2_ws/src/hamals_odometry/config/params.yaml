@@ -1,0 +1,36 @@
+/**:
+  ros__parameters:
+    wheel_ticks_topic: /wheel_ticks
+    odom_topic: /odom_raw
+
+    frame_id: odom
+    child_frame_id: base_footprint
+
+    wheel_radius_m: 0.03729
+    track_width_m: 0.18
+    cpr_left: 3959
+    cpr_right: 3963
+
+    # ENC dt guard (seconds)
+    enc_dt_min_s: 0.0
+    enc_dt_max_s: 0.5
+
+    pose_covariance: [
+      0.05, 0.0, 0.0, 0.0, 0.0, 0.0,
+      0.0, 0.05, 0.0, 0.0, 0.0, 0.0,
+      0.0, 0.0, 9999.0, 0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 9999.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 0.0, 9999.0, 0.0,
+      0.0, 0.0, 0.0, 0.0, 0.0, 9999.0
+    ]
+
+    twist_covariance: [
+      0.001, 0.0, 0.0, 0.0, 0.0, 0.0,
+      0.0, 9999.0, 0.0, 0.0, 0.0, 0.0,
+      0.0, 0.0, 9999.0, 0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 9999.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 0.0, 9999.0, 0.0,
+      0.0, 0.0, 0.0, 0.0, 0.0, 0.01
+    ]
+
+    debug: false

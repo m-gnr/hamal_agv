@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 import os
 from glob import glob
 
-package_name = 'hamals_serial_bridge'
+package_name = 'hamals_odometry'
 
 setup(
     name=package_name,
@@ -14,9 +14,6 @@ setup(
 
         ('share/' + package_name, ['package.xml']),
 
-        (os.path.join('share', package_name, 'launch'),
-            glob('launch/*.launch.py')),
-
         (os.path.join('share', package_name, 'config'),
             glob('config/*.yaml')),
     ],
@@ -24,14 +21,14 @@ setup(
     zip_safe=True,
     maintainer='m-gnr',
     maintainer_email='m_gnr@icloud.com',
-    description='ROS2 serial bridge between Hamals MCU and ROS',
+    description='ROS2 wheel tick odometry publisher for Hamals AGV',
     license='MIT',
     extras_require={
         'test': ['pytest'],
     },
     entry_points={
         'console_scripts': [
-            'serial_node = hamals_serial_bridge.main:main',
+            'odometry_node = hamals_odometry.main:main',
         ],
     },
 )

@@ -8,7 +8,7 @@ import os
 
 
 def generate_launch_description():
-    localization_share = get_package_share_directory('hamals_localization')
+    localization_share = get_package_share_directory('hamals_state_estimation')
     description_share = get_package_share_directory('hamals_robot_description')
     navigation_share = get_package_share_directory('hamals_navigation')
 
