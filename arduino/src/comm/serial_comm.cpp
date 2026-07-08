@@ -1,4 +1,7 @@
 #include "serial_comm.h"
+#include "fork_protocol.h"
+#include "frame_codec.h"
+
 #include <string.h>
 #include <Arduino.h>
 #include <stdio.h>
@@ -117,6 +120,11 @@ void SerialComm::processChar(char c) {
 }
 
 void SerialComm::parsePayload(const char* payload) {
+    // Payload reaches this point only after framed checksum verification.
+    if (hamals::fork_protocol::handleForkPayload(payload)) {
+        return;
+    }
+
     // Expected format: CMD,v,w
     if (strncmp(payload, "CMD,", 4) == 0) {
         float v, w;
@@ -138,7 +146,6 @@ CmdVel SerialComm::getCmdVel() {
 }
 
 void SerialComm::sendEnc(uint32_t t_us, int32_t dl, int32_t dr) {
-    // Build payload
     char payload[64];
     const int p_len = snprintf(payload, sizeof(payload),
                                "ENC,%lu,%ld,%ld",
@@ -149,31 +156,10 @@ void SerialComm::sendEnc(uint32_t t_us, int32_t dl, int32_t dr) {
         return;
     }
 
-    // XOR checksum over payload
-    uint8_t cs = 0;
-    for (int i = 0; i < p_len; ++i) {
-        cs ^= (uint8_t)payload[i];
-    }
-
-    // Build full frame
-    char frame[96];
-    const int f_len = snprintf(frame, sizeof(frame), "$%s*%02X\n", payload, cs);
-    if (f_len <= 0 || f_len >= (int)sizeof(frame)) {
-        return;
-    }
-
-    // NON-BLOCKING DROP STRATEGY:
-    // If the USB-CDC TX buffer is low (host stalled), skip this telemetry frame
-    // so the control loop never blocks.
-    if (Serial.availableForWrite() < f_len) {
-        return;
-    }
-
-    Serial.write((const uint8_t*)frame, (size_t)f_len);
+    hamals::frame_codec::writeFrame(payload);
 }
 
 void SerialComm::sendImu(uint32_t t_us, float gz, float ax, float ay, float az) {
-    // Build payload
     char payload[96];
     const int p_len = snprintf(payload, sizeof(payload),
                             "IMU,%lu,%.4f,%.4f,%.4f,%.4f",  // %.6f → %.4f
@@ -183,25 +169,5 @@ void SerialComm::sendImu(uint32_t t_us, float gz, float ax, float ay, float az) 
         return;
     }
 
-    // XOR checksum over payload
-    uint8_t cs = 0;
-    for (int i = 0; i < p_len; ++i) {
-        cs ^= (uint8_t)payload[i];
-    }
-
-    // Build full frame
-    char frame[128];
-    const int f_len = snprintf(frame, sizeof(frame), "$%s*%02X\n", payload, cs);
-    if (f_len <= 0 || f_len >= (int)sizeof(frame)) {
-        return;
-    }
-
-    // NON-BLOCKING DROP STRATEGY:
-    // If the USB-CDC TX buffer is low (host stalled), skip this telemetry frame
-    // so the control loop never blocks.
-    if (Serial.availableForWrite() < f_len) {
-        return;
-    }
-
-    Serial.write((const uint8_t*)frame, (size_t)f_len);
+    hamals::frame_codec::writeFrame(payload);
 }

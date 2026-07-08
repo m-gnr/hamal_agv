@@ -12,8 +12,12 @@
 #include "src/imu/imu.h"
 #include "src/control/velocity_cmd.h"
 #include "src/control/wheel_pid.h"
+#include "src/control/fork_controller.h"
 #include "src/motor/motor.h"
+#include "src/motor/fork_motor.h"
+#include "src/safety/fork_limits.h"
 #include "src/comm/serial_comm.h"
+#include "src/comm/fork_protocol.h"
 #include "src/timing/timing.h"
 
 // ======================================================
@@ -90,6 +94,9 @@ void setup() {
 
     motorL.begin();
     motorR.begin();
+    hamals::fork_motor::begin();
+    hamals::fork_limits::begin();
+    hamals::fork_controller::begin();
 
     pidL.setGains(WHEEL_PID_KP, WHEEL_PID_KI, WHEEL_PID_KD);
     pidR.setGains(WHEEL_PID_KP, WHEEL_PID_KI, WHEEL_PID_KD);
@@ -131,6 +138,9 @@ void setup() {
 // ======================================================
 void loop() {
     serial.update();
+    hamals::fork_limits::update();
+    hamals::fork_controller::update();
+    hamals::fork_protocol::publishForkStateIfDue();
 
     // --------------------
     // ENCODER SAMPLING (every loop)
