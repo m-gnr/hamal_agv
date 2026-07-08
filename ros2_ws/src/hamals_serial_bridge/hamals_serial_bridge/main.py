@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import math
 import threading
 import time
 
@@ -8,7 +7,7 @@ import rclpy
 from rclpy.node import Node
 
 from geometry_msgs.msg import Twist
-from nav_msgs.msg import Odometry
+from hamals_interfaces.msg import WheelTicks
 from sensor_msgs.msg import Imu
 
 import serial
@@ -32,7 +31,6 @@ class SerialBridgeNode(Node):
         self.cfg = load_config(self)
 
         # ==================== STATE ====================
-        self._last_enc_time_s = None
         self._last_cmd_time = time.time()
         self._last_cmd_send_time = 0.0
         self._deadman_active = False
@@ -52,9 +50,9 @@ class SerialBridgeNode(Node):
         self._dbg_tx = 0
         self._dbg_tx_skipped_dedup = 0
         self._dbg_tx_skipped_ratelimit = 0
-        self._dbg_odom = 0
+        self._dbg_wheel_ticks_tx = 0
         self._dbg_last_cmd = (0.0, 0.0)
-        self._dbg_last_odom = (0.0, 0.0)
+        self._dbg_last_wheel_ticks = (0, 0, 0)
         self._dbg_rx_bytes = 0
         self._dbg_rx_frames = 0
         self._dbg_rx_invalid = 0
@@ -75,9 +73,9 @@ class SerialBridgeNode(Node):
             10
         )
 
-        self.odom_pub = self.create_publisher(
-            Odometry,
-            self.cfg.odom_topic,
+        self.wheel_ticks_pub = self.create_publisher(
+            WheelTicks,
+            self.cfg.wheel_ticks_topic,
             10
         )
 
@@ -302,66 +300,29 @@ class SerialBridgeNode(Node):
         msg_type = msg.get('type')
 
         if msg_type == 'enc':
-            self._publish_odom_raw_from_enc(msg)
+            self._publish_wheel_ticks(msg)
 
         elif msg_type == 'imu':
             self._publish_imu(msg)
 
     # =====================================================
-    # ENC → /odom_raw
+    # ENC → /wheel_ticks
     # =====================================================
-    def _publish_odom_raw_from_enc(self, msg: dict):
-        now_s = self.get_clock().now().nanoseconds / 1e9
+    def _publish_wheel_ticks(self, msg: dict):
+        ticks_msg = WheelTicks()
+        ticks_msg.header.stamp = self.get_clock().now().to_msg()
+        ticks_msg.t_us = msg.get('t_us', 0)
+        ticks_msg.dl = msg.get('dl', 0)
+        ticks_msg.dr = msg.get('dr', 0)
 
-        if self._last_enc_time_s is None:
-            self._last_enc_time_s = now_s
-            return
+        self.wheel_ticks_pub.publish(ticks_msg)
 
-        dt = now_s - self._last_enc_time_s
-        self._last_enc_time_s = now_s
-
-        if dt <= self.cfg.enc_dt_min_s or dt > self.cfg.enc_dt_max_s:
-            return
-
-        dl = msg.get('dl', 0)
-        dr = msg.get('dr', 0)
-
-        dtheta_l = (2.0 * math.pi * dl) / self.cfg.cpr_left
-        dtheta_r = (2.0 * math.pi * dr) / self.cfg.cpr_right
-
-        omega_l = dtheta_l / dt
-        omega_r = dtheta_r / dt
-
-        v_l = omega_l * self.cfg.wheel_radius_m
-        v_r = omega_r * self.cfg.wheel_radius_m
-
-        v = 0.5 * (v_l + v_r)
-        w = (v_r - v_l) / self.cfg.track_width_m
-
-        odom = Odometry()
-        odom.header.stamp = self.get_clock().now().to_msg()
-        odom.header.frame_id = self.cfg.frame_id
-        odom.child_frame_id = self.cfg.child_frame_id
-
-        odom.pose.pose.position.x = 0.0
-        odom.pose.pose.position.y = 0.0
-        odom.pose.pose.position.z = 0.0
-
-        odom.pose.pose.orientation.x = 0.0
-        odom.pose.pose.orientation.y = 0.0
-        odom.pose.pose.orientation.z = 0.0
-        odom.pose.pose.orientation.w = 1.0
-
-        odom.pose.covariance = self.cfg.pose_covariance
-        odom.twist.covariance = self.cfg.twist_covariance
-
-        odom.twist.twist.linear.x = v
-        odom.twist.twist.angular.z = w
-
-        self.odom_pub.publish(odom)
-
-        self._dbg_odom += 1
-        self._dbg_last_odom = (v, w)
+        self._dbg_wheel_ticks_tx += 1
+        self._dbg_last_wheel_ticks = (
+            ticks_msg.t_us,
+            ticks_msg.dl,
+            ticks_msg.dr,
+        )
 
     # =====================================================
     # IMU → /imu/data
@@ -406,21 +367,22 @@ class SerialBridgeNode(Node):
     # =====================================================
     def _print_debug_panel(self):
         cmd_v, cmd_w = self._dbg_last_cmd
-        odom_v, odom_w = self._dbg_last_odom
+        ticks_t_us, ticks_dl, ticks_dr = self._dbg_last_wheel_ticks
 
         panel = format_debug_panel(
             tx_packets=self._dbg_tx,
             tx_dedup_skipped=self._dbg_tx_skipped_dedup,
             tx_ratelimit_skipped=self._dbg_tx_skipped_ratelimit,
-            odom_published=self._dbg_odom,
+            wheel_ticks_published=self._dbg_wheel_ticks_tx,
             rx_bytes=self._dbg_rx_bytes,
             rx_valid_frames=self._dbg_rx_frames,
             rx_invalid_frames=self._dbg_rx_invalid,
             deadman_active=self._deadman_active,
             last_cmd_v=cmd_v,
             last_cmd_w=cmd_w,
-            last_odom_v=odom_v,
-            last_odom_w=odom_w,
+            last_ticks_t_us=ticks_t_us,
+            last_ticks_dl=ticks_dl,
+            last_ticks_dr=ticks_dr,
         )
 
         self.get_logger().info(panel)

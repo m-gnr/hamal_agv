@@ -14,21 +14,11 @@ Serial:
 
 Topics:
   cmd_vel           : {cfg.cmd_vel_topic}
-  odom              : {cfg.odom_topic}
+  wheel_ticks       : {cfg.wheel_ticks_topic}
   imu               : {cfg.imu_topic}
 
 Frames:
-  frame_id          : {cfg.frame_id}
-  child_frame_id    : {cfg.child_frame_id}
   imu_frame_id      : {cfg.imu_frame_id}
-
-Encoder:
-  wheel_radius_m    : {cfg.wheel_radius_m}
-  track_width_m     : {cfg.track_width_m}
-  cpr_left          : {cfg.cpr_left}
-  cpr_right         : {cfg.cpr_right}
-  enc_dt_min_s      : {cfg.enc_dt_min_s}
-  enc_dt_max_s      : {cfg.enc_dt_max_s}
 
 IMU:
   publish_accel     : {cfg.publish_linear_accel}
@@ -55,15 +45,16 @@ def format_debug_panel(
     tx_packets: int,
     tx_dedup_skipped: int,
     tx_ratelimit_skipped: int,
-    odom_published: int,
+    wheel_ticks_published: int,
     rx_bytes: int,
     rx_valid_frames: int,
     rx_invalid_frames: int,
     deadman_active: bool,
     last_cmd_v: float,
     last_cmd_w: float,
-    last_odom_v: float,
-    last_odom_w: float,
+    last_ticks_t_us: int,
+    last_ticks_dl: int,
+    last_ticks_dr: int,
 ) -> str:
     return f"""
 [HAMALS SERIAL BRIDGE] Debug
@@ -79,10 +70,10 @@ RX:
   invalid_frames    : {rx_invalid_frames}
 
 ROS:
-  odom_published    : {odom_published}
+  wheel_ticks_tx    : {wheel_ticks_published}
   deadman_active    : {deadman_active}
 
 Last values:
   cmd_vel           : v={last_cmd_v:.3f}, w={last_cmd_w:.3f}
-  odom_raw_twist    : v={last_odom_v:.3f}, w={last_odom_w:.3f}
+  wheel_ticks       : t_us={last_ticks_t_us}, dl={last_ticks_dl}, dr={last_ticks_dr}
 """
