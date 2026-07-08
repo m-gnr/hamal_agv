@@ -6,12 +6,8 @@
     mcu_fork_cmd_topic: /mcu/fork_cmd
     mcu_fork_state_topic: /mcu/fork_state
 
-    up_duration_ms: 7000
-    down_duration_ms: 7000
-
+    mcu_state_timeout_ms: 1000
     state_publish_hz: 10.0
 
     stop_on_shutdown: true
-    allow_retrigger_same_command: true
-
     debug: true

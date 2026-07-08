@@ -1,122 +1,84 @@
 # ============================================================
 # ForkState.msg
 #
-# Bu mesaj, forklift çatal mekanizmasının anlık durumunu yayınlamak
-# için kullanılır.
+# Bu mesaj, forklift catal mekanizmasinin anlik durumunu yayinlamak
+# icin kullanilir.
 #
-# Not:
-# Bu sistemin ilk sürümünde çatal konumu encoder/switch ile ölçülmez.
-# Hareketler açık çevrim, yani zaman tabanlı olarak yapılır.
+# Yeni mimaride fork konumu timer ile tahmin edilmez.
+# Ust ve alt limit switch bilgileri MCU tarafindan okunur.
 #
-# Bu yüzden:
-#   UP_DONE   -> "Yukarı hareket süresi tamamlandı"
-#   DOWN_DONE -> "Aşağı hareket süresi tamamlandı"
+# Bu yuzden:
+#   AT_TOP    -> ust limit switch aktif
+#   AT_BOTTOM -> alt limit switch aktif
 #
-# anlamına gelir.
+# anlamina gelir.
 #
-# UP_DONE kesin olarak "çatal en üstte" demek değildir.
-# DOWN_DONE kesin olarak "çatal en altta" demek değildir.
+# Motor guvenligi ve limit kontrolu MCU tarafinda yapilmalidir.
+# ROS tarafi sadece komut gonderir ve state bilgisini izler.
 # ============================================================
 
-
-# Mesajın üretildiği ROS zamanı.
-# Debug, loglama ve mission node senkronizasyonu için kullanılır.
+# Mesajin uretildigi ROS zamani.
 builtin_interfaces/Time stamp
 
+# MCU timestamp degeri.
+# MCU tarafindan mikro saniye cinsinden gonderilir.
+# Eger MCU state bilgisi henuz alinmadiysa 0 olabilir.
+uint32 t_us
 
-# ------------------------------------------------------------
-# ANLIK DURUM BİLGİSİ
-# ------------------------------------------------------------
-
-# Fork mekanizmasının mevcut state değeridir.
-#
-# Kullanılabilecek değerler:
-#   IDLE
-#   MOVING_UP
-#   MOVING_DOWN
-#   UP_DONE
-#   DOWN_DONE
-#   ERROR
+# Fork mekanizmasinin mevcut state degeridir.
 uint8 state
 
-
-# Fork node'a gelen son geçerli komutu tutar.
-#
-# Örneğin:
-#   CMD_UP   -> son komut yukarı hareket
-#   CMD_DOWN -> son komut aşağı hareket
-#   CMD_STOP -> son komut durdurma
-#
-# Hata durumunda hangi komuttan sonra hata olduğunu anlamak için kullanılır.
+# Fork node'a gelen son gecerli komutu tutar.
 uint8 last_command
 
-
 # Hata kodudur.
-#
-# Normal durumda ERROR_NONE olur.
-# Geçersiz komut, timeout veya ileride eklenecek güvenlik hataları burada tutulur.
 uint8 error_code
 
-
-# Fork motoru şu anda hareket ediyor mu?
-#
-# true:
-#   MOVING_UP veya MOVING_DOWN durumundadır.
-#
-# false:
-#   IDLE, UP_DONE, DOWN_DONE veya ERROR durumundadır.
+# Fork motoru su anda hareket ediyor mu?
 bool is_moving
 
+# Ust limit switch aktif mi?
+#
+# NC + INPUT_PULLUP baglantisinda MCU tarafinda:
+#   digitalRead(UPPER_PIN) == HIGH -> upper_limit = true
+bool upper_limit
 
-# Timer tabanlı hareketlerde kalan süreyi milisaniye cinsinden gösterir.
+# Alt limit switch aktif mi?
 #
-# Örnek:
-#   Yukarı hareket süresi 7000 ms ise,
-#   hareket başında remaining_time_ms yaklaşık 7000 olur.
-#   süre ilerledikçe azalır.
-#   hareket tamamlanınca 0 olur.
-#
-# Debug ve mission node için faydalıdır.
-uint32 remaining_time_ms
+# NC + INPUT_PULLUP baglantisinda MCU tarafinda:
+#   digitalRead(LOWER_PIN) == HIGH -> lower_limit = true
+bool lower_limit
 
 
 # ------------------------------------------------------------
-# STATE ENUM DEĞERLERİ
+# STATE ENUM DEGERLERI
 # ------------------------------------------------------------
 
-# Motor çalışmıyor, aktif hareket yok.
+# Motor calismiyor, aktif hareket yok.
 uint8 IDLE=0
 
-# Fork yukarı yönde hareket ediyor.
+# Fork yukari yonde hareket ediyor.
 uint8 MOVING_UP=1
 
-# Fork aşağı yönde hareket ediyor.
+# Fork asagi yonde hareket ediyor.
 uint8 MOVING_DOWN=2
 
-# Yukarı hareket için belirlenen süre tamamlandı.
-#
-# Önemli:
-# Bu değer gerçek üst limit algılandı anlamına gelmez.
-# Sadece timer süresi doldu ve motor durduruldu anlamına gelir.
-uint8 UP_DONE=3
+# Ust limit switch aktif, fork ust konumda.
+uint8 AT_TOP=3
 
-# Aşağı hareket için belirlenen süre tamamlandı.
-#
-# Önemli:
-# Bu değer gerçek alt limit algılandı anlamına gelmez.
-# Sadece timer süresi doldu ve motor durduruldu anlamına gelir.
-uint8 DOWN_DONE=4
+# Alt limit switch aktif, fork alt konumda.
+uint8 AT_BOTTOM=4
 
 # Fork sistemi hata durumunda.
-# Detay için error_code alanına bakılır.
+# Detay icin error_code alanina bakilir.
 uint8 ERROR=5
 
 
 # ------------------------------------------------------------
-# COMMAND ENUM DEĞERLERİ
+# COMMAND ENUM DEGERLERI
 # ------------------------------------------------------------
 
-# Henüz komut alınmadı veya son komut bilinmiyor.
+# Henuz komut alinmadi veya son komut bilinmiyor.
 uint8 CMD_NONE=0
 
 # Son komut STOP.
@@ -130,21 +92,25 @@ uint8 CMD_DOWN=3
 
 
 # ------------------------------------------------------------
-# ERROR ENUM DEĞERLERİ
+# ERROR ENUM DEGERLERI
 # ------------------------------------------------------------
 
 # Hata yok.
 uint8 ERROR_NONE=0
 
-# Timeout hatası.
-#
-# İlk timer-only sürümde normal hareket bitişi timeout sayılmaz.
-# Bu değer daha çok ileride MCU cevabı beklenip alınamazsa veya
-# beklenen süre içinde işlem tamamlanmazsa kullanılabilir.
-uint8 ERROR_TIMEOUT=1
+# Gecersiz komut hatasi.
+uint8 ERROR_INVALID_COMMAND=1
 
-# Geçersiz komut hatası.
-#
-# Örneğin ForkCommand içinde tanımlı olmayan bir command değeri gelirse
-# bu hata kodu kullanılabilir.
-uint8 ERROR_INVALID_COMMAND=2
+# Ust limite beklenen sekilde ulasilamadi.
+# Bu hata daha cok MCU tarafinda uretilebilir.
+uint8 ERROR_TOP_TIMEOUT=2
+
+# Alt limite beklenen sekilde ulasilamadi.
+# Bu hata daha cok MCU tarafinda uretilebilir.
+uint8 ERROR_BOTTOM_TIMEOUT=3
+
+# Ust ve alt limit ayni anda aktif gibi tutarsiz bir durum var.
+uint8 ERROR_LIMIT_CONFLICT=4
+
+# MCU state mesaji beklenen surede gelmedi.
+uint8 ERROR_MCU_TIMEOUT=5

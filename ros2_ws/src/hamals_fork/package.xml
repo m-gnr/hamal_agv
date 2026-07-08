@@ -3,17 +3,16 @@
 <package format="3">
   <name>hamals_fork</name>
   <version>0.0.0</version>
-  <description>Timer-based fork control node for Hamal AGV</description>
+  <description>ROS2 fork controller bridge for Hamals AGV forklift mechanism</description>
   <maintainer email="m_gnr@icloud.com">murat</maintainer>
   <license>TODO: License declaration</license>
-
-  <exec_depend>launch</exec_depend>
-  <exec_depend>launch_ros</exec_depend>
-  <exec_depend>ament_index_python</exec_depend>
 
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
   <depend>hamals_interfaces</depend>
+  <depend>launch</depend>
+  <depend>launch_ros</depend>
+  <depend>ament_index_python</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

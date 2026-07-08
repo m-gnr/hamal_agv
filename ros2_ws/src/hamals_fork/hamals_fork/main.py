@@ -1,190 +1,105 @@
-#!/usr/bin/env python3
-
-# hamals_fork/main.py
-
 import rclpy
 from rclpy.node import Node
-
 from std_msgs.msg import String
+
 from hamals_interfaces.msg import ForkCommand, ForkState
-
-from .fork_controller import ForkController
-from .fork_commands import command_to_text
-from .fork_states import state_to_text
-
-from .helpers.config_loader import (
-    declare_fork_parameters,
-    load_fork_config,
-    validate_fork_config,
-)
-from .helpers.log_helpers import log_startup_config
+from hamals_fork.fork_controller import ForkController
+from hamals_fork.fork_states import error_name, state_name
+from hamals_fork.helpers.config_loader import declare_fork_parameters, load_fork_config
+from hamals_fork.helpers.log_helpers import log_fork_config
 
 
 class ForkNode(Node):
-    """
-    HAMALS Fork ROS2 node.
-
-    Görevleri:
-    - /fork/cmd üzerinden ForkCommand alır.
-    - ForkController ile timer tabanlı açık çevrim kontrol yapar.
-    - /mcu/fork_cmd üzerinden serial_bridge'e UP / DOWN / STOP gönderir.
-    - /fork/state üzerinden ForkState yayınlar.
-    """
-
     def __init__(self):
-        super().__init__('hamals_fork_node')
+        super().__init__("fork_node")
 
-        # ------------------------------------------------------------
-        # CONFIG
-        # ------------------------------------------------------------
         declare_fork_parameters(self)
         self.config = load_fork_config(self)
-        validate_fork_config(self.config)
+        self.controller = ForkController(self.config.mcu_state_timeout_ms)
 
-        # ------------------------------------------------------------
-        # CONTROLLER
-        # ------------------------------------------------------------
-        self.controller = ForkController(
-            up_duration_ms=self.config.up_duration_ms,
-            down_duration_ms=self.config.down_duration_ms,
+        self.fork_state_pub = self.create_publisher(
+            ForkState,
+            self.config.fork_state_topic,
+            10,
+        )
+        self.mcu_fork_cmd_pub = self.create_publisher(
+            String,
+            self.config.mcu_fork_cmd_topic,
+            10,
         )
 
-        # ------------------------------------------------------------
-        # ROS INTERFACES
-        # ------------------------------------------------------------
-        self.cmd_sub = self.create_subscription(
+        self.fork_cmd_sub = self.create_subscription(
             ForkCommand,
             self.config.fork_cmd_topic,
             self.cmd_callback,
             10,
         )
-
-        self.state_pub = self.create_publisher(
+        self.mcu_fork_state_sub = self.create_subscription(
             ForkState,
-            self.config.fork_state_topic,
-            10,
-        )
-
-        self.mcu_cmd_pub = self.create_publisher(
-            String,
-            self.config.mcu_fork_cmd_topic,
+            self.config.mcu_fork_state_topic,
+            self.mcu_state_callback,
             10,
         )
 
         timer_period_s = 1.0 / self.config.state_publish_hz
         self.timer = self.create_timer(timer_period_s, self.timer_callback)
 
-        log_startup_config(self, self.config)
-        self.get_logger().info("hamals_fork_node started")
-
-    # ------------------------------------------------------------
-    # CALLBACKS
-    # ------------------------------------------------------------
+        if self.config.debug:
+            log_fork_config(self.get_logger(), self.config)
 
     def cmd_callback(self, msg: ForkCommand) -> None:
-        """
-        /fork/cmd callback.
+        was_error = self.controller.state == ForkState.ERROR
+        mcu_cmd = self.controller.handle_command(msg.command)
 
-        Gelen yüksek seviye fork komutunu controller'a verir.
-        Controller gerekirse MCU'ya gönderilecek string komutu döndürür.
-        """
+        if mcu_cmd is None:
+            if was_error and msg.command in (ForkCommand.UP, ForkCommand.DOWN):
+                self.get_logger().warning(
+                    "Fork is in ERROR; rejecting UP/DOWN command until STOP is received"
+                )
+            elif self.controller.error_code == ForkState.ERROR_INVALID_COMMAND:
+                self.get_logger().warning(f"Invalid fork command: {msg.command}")
+        else:
+            self.publish_mcu_command(mcu_cmd)
 
-        command = int(msg.command)
+        self.publish_state()
 
+    def mcu_state_callback(self, msg: ForkState) -> None:
+        self.controller.update_from_mcu_state(msg)
         if self.config.debug:
-            self.get_logger().info(
-                f"Fork command received: {command_to_text(command)} ({command})"
+            self.get_logger().debug(
+                "MCU fork state: "
+                f"state={state_name(self.controller.state)}, "
+                f"error={error_name(self.controller.error_code)}, "
+                f"moving={self.controller.is_moving}, "
+                f"upper_limit={self.controller.upper_limit}, "
+                f"lower_limit={self.controller.lower_limit}"
             )
-
-        mcu_cmd = self.controller.handle_command(command)
-
-        if mcu_cmd is not None:
-            self.publish_mcu_cmd(mcu_cmd)
-
         self.publish_state()
 
     def timer_callback(self) -> None:
-        """
-        Periyodik update callback.
-
-        Bu callback iki iş yapar:
-        1. Controller timer süresi doldu mu diye kontrol eder.
-        2. ForkState mesajını düzenli yayınlar.
-        """
-
-        mcu_cmd = self.controller.update()
-
-        if mcu_cmd is not None:
-            self.publish_mcu_cmd(mcu_cmd)
-
-            if self.config.debug:
-                self.get_logger().info(
-                    f"Fork motion finished. State={state_to_text(self.controller.state)}"
-                )
-
+        self.controller.update()
         self.publish_state()
 
-    # ------------------------------------------------------------
-    # PUBLISH HELPERS
-    # ------------------------------------------------------------
-
-    def publish_mcu_cmd(self, cmd: str) -> None:
-        """
-        Serial bridge'e gönderilecek düşük seviye fork komutunu yayınlar.
-
-        Topic:
-          /mcu/fork_cmd
-
-        Mesaj:
-          std_msgs/String
-
-        Örnek:
-          UP
-          DOWN
-          STOP
-        """
-
+    def publish_mcu_command(self, command: str) -> None:
         msg = String()
-        msg.data = cmd
-        self.mcu_cmd_pub.publish(msg)
-
-        if self.config.debug:
-            self.get_logger().info(f"MCU fork cmd published: {cmd}")
+        msg.data = command
+        self.mcu_fork_cmd_pub.publish(msg)
 
     def publish_state(self) -> None:
-        """
-        Güncel ForkState mesajını yayınlar.
-        """
-
         stamp = self.get_clock().now().to_msg()
-        msg = self.controller.make_state_msg(stamp)
-        self.state_pub.publish(msg)
+        self.fork_state_pub.publish(self.controller.make_state_msg(stamp))
 
-    # ------------------------------------------------------------
-    # SHUTDOWN
-    # ------------------------------------------------------------
-
-    def destroy_node(self) -> None:
-        """
-        Node kapanırken istenirse MCU'ya STOP gönderir.
-
-        Bu sayede node Ctrl+C ile kapatılsa bile fork motoruna dur komutu gider.
-        """
-
-        if self.config.stop_on_shutdown:
-            self.publish_mcu_cmd('STOP')
-
-        super().destroy_node()
+    def destroy_node(self) -> bool:
+        if getattr(self, "config", None) and self.config.stop_on_shutdown:
+            self.publish_mcu_command("STOP")
+        return super().destroy_node()
 
 
 def main(args=None):
     rclpy.init(args=args)
     node = ForkNode()
-
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
     finally:
         node.destroy_node()
         rclpy.shutdown()
