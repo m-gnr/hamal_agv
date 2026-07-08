@@ -5,7 +5,7 @@ import os
 
 
 def generate_launch_description():
-    pkg_share = get_package_share_directory('hamals_localization')
+    pkg_share = get_package_share_directory('hamals_state_estimation')
 
     params_file = os.path.join(
         pkg_share,

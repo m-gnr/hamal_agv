@@ -31,7 +31,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'serial_node = hamals_serial_bridge.serial_node:main',
+            'serial_node = hamals_serial_bridge.main:main',
         ],
     },
 )
