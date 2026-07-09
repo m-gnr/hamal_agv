@@ -1,0 +1,135 @@
+MEKANİK ROBOT BİLGİLERİ
+
+1. ROBOT GÖVDE ÖLÇÜLERİ
+
+Robot gövde uzunluğu:
+
+* 52,6 cm
+
+Robot gövde genişliği:
+
+* Tekersiz: 40 cm
+* Tekerli: 55 cm
+
+Robot gövde yüksekliği:
+
+* Tekersiz: 33,7 cm
+* Tekerli: 38,2 cm
+
+Robotun yerden yüksekliği:
+
+* 4,5 cm
+
+2. SÜRÜŞ TEKERLERİ
+
+Sürüş teker çapı:
+
+* 20 cm
+
+Sürüş teker yarıçapı:
+
+* 10 cm
+
+Sağ ve sol sürüş tekerlerinin merkezleri arasındaki mesafe:
+
+* 46,2 cm
+
+Teker genişliği:
+
+* 5 cm
+
+3. DESTEK TEKERİ
+
+Destek tekeri çapı:
+
+* 3 cm
+
+Destek tekeri yarıçapı:
+
+* 1,5 cm
+
+Destek tekeri merkezinin robotun arkasına olan uzaklığı:
+
+* 11 cm
+
+4. FORK / ÇATAL MEKANİZMASI
+
+Forklar dahil toplam robot uzunluğu:
+
+* 112,6 cm
+
+Forklar hariç toplam robot uzunluğu:
+
+* 52,6 cm
+
+Fork genişliği:
+
+* 35,5 cm
+
+Fork uzunluğu:
+
+* 51 cm
+* Not: Sadece uç demirlerin uzunluğudur.
+
+Fork yüksekliği:
+
+* DOLDURULACAK
+
+İki fork arası açıklık:
+
+* 23 cm
+
+5. LIDAR KONUMU
+
+Lidar yerden yüksekliği:
+
+* 38 cm
+
+Lidar robot merkezine göre konumu:
+
+* DOLDURULACAK
+
+6. ÖZET PARAMETRELER
+
+Gövde uzunluğu:
+
+* 52,6 cm
+
+Toplam uzunluk:
+
+* Forklar hariç: 52,6 cm
+* Forklar dahil: 112,6 cm
+
+Toplam genişlik:
+
+* Tekersiz: 40 cm
+* Tekerli: 55 cm
+
+Toplam yükseklik:
+
+* Tekersiz: 33,7 cm
+* Tekerli: 38,2 cm
+
+Yerden yükseklik:
+
+* 4,5 cm
+
+Sürüş teker çapı:
+
+* 20 cm
+
+Sürüş teker yarıçapı:
+
+* 10 cm
+
+Teker merkezleri arası mesafe:
+
+* 46,2 cm
+
+Destek teker çapı:
+
+* 3 cm
+
+Lidar yüksekliği:
+
+* 38 cm

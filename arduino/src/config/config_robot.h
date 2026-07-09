@@ -5,12 +5,12 @@
 // -------------------- Wheel & Encoder ------------------
 
 // Wheel radius in meters
-constexpr float WHEEL_RADIUS_M = 0.03729f;   
+constexpr float WHEEL_RADIUS_M = 0.10f; // 10 cm yarıçap   
 
 // Encoder resolution counts per WHEEL revolution (measured by 10-turn hand test)
 // (quadrature decoding included)
-constexpr int ENCODER_CPR_LEFT  = 3959;
-constexpr int ENCODER_CPR_RIGHT = 3963;
+constexpr int ENCODER_CPR_LEFT  = 3959; // PROTOTİP DEĞERİ YENİDEN ÖLÇÜLMELİ
+constexpr int ENCODER_CPR_RIGHT = 3963; // PROTOTİP DEĞERİ YENİDEN ÖLÇÜLMELİ
 
 // ---------------- Encoder Direction ----------------
 constexpr int ENC_L_DIRECTION = -1;   // -1 normal, 1 reverse
@@ -25,18 +25,18 @@ constexpr int ENC_R_DIRECTION = -1;
 // -------------------- Robot Geometry -------------------
 
 // Distance between left and right wheels (meters)
-constexpr float TRACK_WIDTH_M = 0.18f;     // 18.0 cm 
+constexpr float TRACK_WIDTH_M = 0.462f;     // 46.2 cm 
 
 // -------------------- Motion Limits -------------------
 
 // Maximum wheel angular speed (rad/s)
-constexpr float MAX_WHEEL_RAD_S = 12.0f;
+constexpr float MAX_WHEEL_RAD_S = 5.0f; // MUTLAKA TEST EDİLİP YENİ DEĞER GİRİLMELİ
 
 // Maximum linear speed of robot (m/s)
-constexpr float MAX_LINEAR_M_S = 0.5f;
+constexpr float MAX_LINEAR_M_S = 0.25f; // MUTLAKA TEST EDİLİP YENİ DEĞER GİRİLMELİ
 
 // Maximum angular speed of robot (rad/s)
-constexpr float MAX_ANGULAR_RAD_S = 1.5f;
+constexpr float MAX_ANGULAR_RAD_S = 0.8f; // MUTLAKA TEST EDİLİP YENİ DEĞER GİRİLMELİ
 
 // -------------------- Control Timing ------------------
 
@@ -67,7 +67,7 @@ constexpr int PWM_MAX = 255;
 // RUN:   minimum PWM needed to keep moving once already rotating
 
 // Left wheel thresholds
-constexpr float PWM_MIN_START_L = 85.0f;   // start threshold (measured + safety margin)
+constexpr float PWM_MIN_START_L = 85.0f;   // start threshold (measured + safety margin) 
 constexpr float PWM_MIN_RUN_L   = 70.0f;   // run/keep-moving threshold
 
 // Right wheel thresholds (often slightly higher than left)
@@ -106,12 +106,12 @@ constexpr float YAW_CORRECTION_KP = 2.0f; // 1.0–3.0
 // -------------------- Wheel PID ------------------------
 
 // Wheel speed PID gains
-constexpr float WHEEL_PID_KP = 30.0f;
-constexpr float WHEEL_PID_KI = 15.0f;
-constexpr float WHEEL_PID_KD = 0.0f;
+constexpr float WHEEL_PID_KP = 30.0f; // MUTLAKA TEST EDİLİP YENİ DEĞER GİRİLMELİ
+constexpr float WHEEL_PID_KI = 15.0f; // MUTLAKA TEST EDİLİP YENİ DEĞER GİRİLMELİ
+constexpr float WHEEL_PID_KD = 0.0f;  // MUTLAKA TEST EDİLİP YENİ DEĞER GİRİLMELİ
 
 // PWM ramp limit (per control step)
-constexpr float WHEEL_PID_RAMP_STEP = 15.0f;
+constexpr float WHEEL_PID_RAMP_STEP = 15.0f; // MUTLAKA TEST EDİLİP YENİ DEĞER GİRİLMELİ
 
 // -------------------- Serial TX -----------------------
 // Telemetry periods (seconds)
