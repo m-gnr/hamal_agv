@@ -1,6 +1,6 @@
 # ============================================================
 # hamals_robot — Forklift AGV Robot Konfigürasyonu
-# v7 — yeni robot mekanik ölçülerine göre güncellendi
+# v8 — ölçülen yeni robot mekanik değerlerine göre güncellendi
 # ============================================================
 #
 # Koordinat sistemi:
@@ -8,7 +8,7 @@
 #   +y  : sol
 #   +z  : yukarı
 #
-#  mekanik bilgiler:
+# Mekanik bilgiler:
 #   Gövde uzunluğu                         : 52.6 cm  = 0.526 m
 #   Gövde genişliği tekersiz               : 40.0 cm  = 0.400 m
 #   Gövde genişliği tekerli                : 55.0 cm  = 0.550 m
@@ -26,8 +26,17 @@
 #   Forklar hariç toplam robot uzunluğu    : 52.6 cm  = 0.526 m
 #   Fork genişliği                         : 35.5 cm  = 0.355 m
 #   Fork uzunluğu                          : 51.0 cm  = 0.510 m
+#   Fork yüksekliği                        : 1.0 cm   = 0.010 m
 #   İki fork arası açıklık                 : 23.0 cm  = 0.230 m
-#   Lidar yerden yüksekliği                : 38.0 cm  = 0.380 m
+#   Lidar alt yüzey yüksekliği             : 38.0 cm  = 0.380 m
+#
+# Ölçülen x konumları:
+#   Gövde merkezi arka uçtan               : 26.3 cm  = 0.263 m
+#   Sürüş teker merkezi arka uçtan         : 42.5 cm  = 0.425 m
+#   Sürüş teker x                          : 42.5 - 26.3 = +16.2 cm = +0.162 m
+#   Mast merkezi arka uçtan                : 55.0 cm  = 0.550 m
+#   Mast x                                 : 55.0 - 26.3 = +28.7 cm = +0.287 m
+#   Lidar merkezi gövde merkezine göre     : +16.25 cm = +0.1625 m
 #
 # Önemli z referansları:
 #   z = 0.0000 : zemin / base_footprint
@@ -35,7 +44,8 @@
 #   z = 0.1000 : sürüş teker merkezi
 #   z = 0.2135 : base_link / gövde geometrik merkezi
 #   z = 0.3820 : gövde üst yüzeyi
-#   z = 0.3800 : lidar_link hedef yüksekliği, geçici olarak lidar merkezi kabul edildi
+#   z = 0.3800 : lidar alt yüzeyi
+#   z = 0.4000 : lidar geometrik merkezi / lidar_link
 #
 # Zemin ve hizalama doğrulama:
 #   gövde altı       : 0.2135 - 0.1685 = 0.0450 ✓
@@ -44,13 +54,7 @@
 #   wheel relative z : 0.1000 - 0.2135 = -0.1135 ✓
 #   caster altı      : 0.0150 - 0.0150 = 0.0000 ✓
 #   caster rel z     : 0.0150 - 0.2135 = -0.1985 ✓
-#
-# TODO ölçülecek kritik değerler:
-#   1. Sürüş teker merkezinin robot gövde merkezine göre x konumu
-#   2. Mast merkezinin robot gövde merkezine göre x konumu
-#   3. Fork yüksekliği
-#   4. Lidar robot merkezine göre x/y konumu
-#   5. Lidar yüksekliği tam olarak neyi ifade ediyor: alt, merkez, scan düzlemi?
+#   lidar merkezi z  : 0.3800 + 0.040 / 2 = 0.4000 ✓
 # ============================================================
 
 robot:
@@ -113,15 +117,15 @@ wheels:
     # Sağ-sol teker merkezleri arası = 0.462 m
     # Sol teker y = +0.462 / 2 = +0.231 m
     #
+    # Sürüş teker merkezi arka uçtan = 0.425 m
+    # Gövde merkezi arka uçtan = 0.263 m
+    # x = 0.425 - 0.263 = 0.162 m
+    #
     # Dünya z merkezi = 0.100 m
     # base_link z      = 0.2135 m
     # relative z       = 0.100 - 0.2135 = -0.1135 m
-    #
-    # TODO:
-    #   x: 0.18 geçici değerdir.
-    #   Sürüş teker merkezinin robot gövde merkezine göre x konumu ölçülmeli.
     origin:
-      xyz: [0.18, 0.231, -0.1135]
+      xyz: [0.162, 0.231, -0.1135]
       rpy: [1.5708, 0.0, 0.0]
 
     joint:
@@ -139,12 +143,8 @@ wheels:
     width: 0.050
 
     # Sağ teker y = -0.462 / 2 = -0.231 m
-    #
-    # TODO:
-    #   x: 0.18 geçici değerdir.
-    #   Sürüş teker merkezinin robot gövde merkezine göre x konumu ölçülmeli.
     origin:
-      xyz: [0.18, -0.231, -0.1135]
+      xyz: [0.162, -0.231, -0.1135]
       rpy: [1.5708, 0.0, 0.0]
 
     joint:
@@ -196,20 +196,15 @@ forklift:
 
     # Gövde yüksekliği = 0.337 m
     # Mast yüksekliği geçici olarak gövde yüksekliğiyle aynı tutuldu.
-    #
-    # TODO:
-    #   Gerçek mast yüksekliği ve mast x konumu ölçülmeli.
     height: 0.337
     width: 0.355
     depth: 0.050
 
-    # Gövde ön kenarı = 0.526 / 2 = 0.263 m
-    # Mast merkezi geçici olarak ön tarafa yakın konumlandırıldı.
-    #
-    # TODO:
-    #   Mast merkezinin robot gövde merkezine göre x konumu ölçülmeli.
+    # Mast merkezi arka uçtan = 0.550 m
+    # Gövde merkezi arka uçtan = 0.263 m
+    # x = 0.550 - 0.263 = 0.287 m
     origin:
-      xyz: [0.323, 0.0, 0.0]
+      xyz: [0.287, 0.0, 0.0]
       rpy: [0.0, 0.0, 0.0]
 
     joint:
@@ -242,18 +237,18 @@ forklift:
     depth: 0.040
     height: 0.120
 
-    # Forkların alt kısmı gövde alt tabanına yakın başlatıldı.
+    # Fork alt kısmı gövde alt tabanına yakın başlatıldı.
     #
-    # base_link dünya z       = 0.2135
-    # fork alt hedef z        = 0.045
-    # fork yüksekliği         = 0.040, TODO gerçek ölçü girilmeli
-    # fork merkez hedef z     = 0.045 + 0.040 / 2 = 0.065
+    # base_link dünya z        = 0.2135
+    # fork alt hedef z         = 0.045
+    # fork yüksekliği          = 0.010
+    # fork merkez hedef z      = 0.045 + 0.010 / 2 = 0.050
     #
-    # left/right fork origin z = -0.080 olduğundan:
-    # carriage dünya z = 0.065 - (-0.080) = 0.145
-    # carriage rel z   = 0.145 - 0.2135 = -0.0685
+    # left/right fork origin z = -0.065 olduğundan:
+    # carriage dünya z = 0.050 - (-0.065) = 0.115
+    # carriage rel z   = 0.115 - 0.2135 = -0.0985
     origin:
-      xyz: [0.03, 0.0, -0.0685]
+      xyz: [0.03, 0.0, -0.0985]
       rpy: [0.0, 0.0, 0.0]
 
     joint:
@@ -283,14 +278,11 @@ forklift:
     #   0.230 / 2 + 0.0625 / 2 = 0.14625 m
     length: 0.510
     width: 0.0625
-
-    # TODO:
-    #   Fork yüksekliği gerçek robot üzerinde ölçülmeli.
-    height: 0.040
+    height: 0.010
 
     left:
       origin:
-        xyz: [0.255, 0.14625, -0.080]
+        xyz: [0.255, 0.14625, -0.065]
         rpy: [0.0, 0.0, 0.0]
 
       joint:
@@ -301,7 +293,7 @@ forklift:
 
     right:
       origin:
-        xyz: [0.255, -0.14625, -0.080]
+        xyz: [0.255, -0.14625, -0.065]
         rpy: [0.0, 0.0, 0.0]
 
       joint:
@@ -320,20 +312,21 @@ lidar_mount:
   radius: 0.060
   height: 0.040
 
-  # Lidar yerden yüksekliği = 0.380 m
-  # Burada geçici olarak lidar_link merkezi / scan frame yüksekliği kabul edildi.
+  # Lidar için verilen 38 cm yükseklik alt yüzeydir.
+  # Lidar alt yüzeyi dünya z = 0.380 m
+  # Lidar yüksekliği = 0.040 m
+  # Lidar merkezi / lidar_link hedef z = 0.380 + 0.040 / 2 = 0.400 m
   #
   # base_link z = 0.2135 m
-  # lidar_link hedef relative z = 0.380 - 0.2135 = 0.1665 m
+  # lidar_link hedef relative z = 0.400 - 0.2135 = 0.1865 m
   #
   # lidar origin z = 0.040 olduğundan:
-  # mount relative z = 0.1665 - 0.040 = 0.1265 m
+  # mount relative z = 0.1865 - 0.040 = 0.1465 m
   #
-  # TODO:
-  #   Lidar robot merkezine göre x/y konumu ölçülmeli.
-  #   Lidar yüksekliği merkez mi, alt yüzey mi, scan düzlemi mi netleştirilmeli.
+  # Lidar merkezi robot gövde merkezine göre 16.25 cm önde:
+  # x = +0.1625 m
   origin:
-    xyz: [0.0, 0.0, 0.1265]
+    xyz: [0.1625, 0.0, 0.1465]
     rpy: [0.0, 0.0, 0.0]
 
   joint:
@@ -351,7 +344,10 @@ lidar:
 
   # lidar_link dünya z:
   # base_link z + lidar_mount z + lidar origin z
-  # 0.2135 + 0.1265 + 0.040 = 0.380 m
+  # 0.2135 + 0.1465 + 0.040 = 0.400 m
+  #
+  # Lidar alt yüzeyi:
+  # 0.400 - 0.040 / 2 = 0.380 m
   origin:
     xyz: [0.0, 0.0, 0.040]
     rpy: [0.0, 0.0, 0.0]
