@@ -10,7 +10,7 @@ Kamera: `<img>` ← `web_video_server` MJPEG (ayrı HTTP)
 
 ```bash
 # Workspace root'undan:
-cbuild   # alias → colcon build --symlink-install
+h cbuild   # HAMALS CLI → colcon build --symlink-install
 # veya:
 cd ~/ros2_ws && colcon build --packages-select hamals_ui --symlink-install
 ```
