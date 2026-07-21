@@ -35,14 +35,19 @@ def launch_setup(context, *args, **kwargs):
     )
 
     lidar_node = Node(
-        package='hls_lfcd_lds_driver',
-        executable='hlds_laser_publisher',
-        name='hlds_laser_publisher',
+        package='sllidar_ros2',
+        executable='sllidar_node',
+        name='sllidar_node',
         output='screen',
         parameters=[
             {
-                'port': lidar_cfg['port'],
+                'channel_type': 'serial',
+                'serial_port': lidar_cfg['port'],
+                'serial_baudrate': 1000000,
                 'frame_id': lidar_cfg['frame_id'],
+                'inverted': False,
+                'angle_compensate': True,
+                'scan_mode': 'DenseBoost',
             }
         ]
     )
