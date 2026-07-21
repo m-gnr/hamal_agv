@@ -1,0 +1,9 @@
+# config/qr_params.yaml
+qr_node:
+  ros__parameters:
+    stable_threshold: 5
+    process_every_n: 3
+    image_topic: "/camera/image_raw"
+    detected_topic: "/qr/detected"
+    text_topic: "/qr/text"
+    overlay_topic: "/qr/overlay"
