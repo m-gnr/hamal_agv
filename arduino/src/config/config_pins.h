@@ -2,17 +2,17 @@
 #pragma once
 
 // -------------------- Encoder Pins ---------------------
-// Left wheel encoder
-#define ENC_L_A   D12   // GPIO10 - interrupt capable - Channel A
-#define ENC_L_B   D0   // GPIO1 - interrupt capable - Channel B
+// Left wheel encoder  yous degisti b=sari=>13
+#define ENC_L_A   D14  // GPIO10 - interrupt capable - Channel A
+#define ENC_L_B   D13  // GPIO1 - interrupt capable - Channel B
 
 // Right wheel encoder
-#define ENC_R_A   D13   // GPIO3  - interrupt capable - Channel A
-#define ENC_R_B   D14   // GPIO8  - interrupt capable - Channel B
+#define ENC_R_A   D9   // GPIO3  - interrupt capable - Channel A
+#define ENC_R_B   D10   // GPIO8  - interrupt capable - Channel B
 
 // -------------------- Motor Driver Pins ----------------
-#define MOTOR_L_IN1  A3
-#define MOTOR_L_IN2  A2
+#define MOTOR_L_IN1  A2
+#define MOTOR_L_IN2  A3
 
 // RIGHT motor is on the remaining A0/A1 pair (keep order for now)
 #define MOTOR_R_IN1  A0
@@ -21,7 +21,11 @@
 // -------------------- IMU (BNO085 - SPI) ----------------
 #define IMU_CS    D4    // GPIO42 - Chip Select
 #define IMU_INT   D1    // GPIO2  - Data Ready Interrupt
-#define IMU_RST   D8    // GPIO38 - Reset
+#define IMU_RST   D8   // GPIO38 - Reset
+
+#define IMU_SCK   D5    //GPIO26 - SCK
+#define IMU_MISO  D6    //GPIO27 - MISO SDA
+#define IMU_MOSI  D7    //GPIO28 - MOSI SCL
 
 // -------------------- Fork / Lift Motor -----------------
 // BTS7960 fork motor driver

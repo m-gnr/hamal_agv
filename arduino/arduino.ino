@@ -240,6 +240,14 @@ void loop() {
     const float pwmL = pidL.update(omegaLt, kinOut.omega_left, dt);
     const float pwmR = pidR.update(omegaRt, kinOut.omega_right, dt);
 
-    motorL.setPWM((int)pwmL);
-    motorR.setPWM((int)pwmR);
+
+
+// yous degistirdi 
+
+if (pwmL >= 0)
+    motorL.setPWM((int)pwmL + 6);   
+else
+    motorL.setPWM((int)pwmL - 6);   
+
+motorR.setPWM((int)pwmR);
 }

@@ -14,14 +14,6 @@ def launch_setup(context, *args, **kwargs):
     serial_bridge_share = get_package_share_directory('hamals_serial_bridge')
     odometry_share = get_package_share_directory('hamals_odometry')
 
-    config_file = os.path.join(bringup_share, 'config', 'robot_io.yaml')
-
-    with open(config_file, 'r') as f:
-        config = yaml.safe_load(f)
-
-    robot_io_cfg = config['robot_io']
-    lidar_cfg = robot_io_cfg['lidar']
-
     serial_bridge_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(serial_bridge_share, 'launch', 'serial_bridge.launch.py')
@@ -41,8 +33,8 @@ def launch_setup(context, *args, **kwargs):
         output='screen',
         parameters=[
             {
-                'port': lidar_cfg['port'],
-                'frame_id': lidar_cfg['frame_id'],
+                'port': '/dev/ttyUSB0',
+                'frame_id': 'lidar_link',
             }
         ]
     )

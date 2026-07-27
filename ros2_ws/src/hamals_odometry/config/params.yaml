@@ -6,10 +6,12 @@
     frame_id: odom
     child_frame_id: base_footprint
 
-    wheel_radius_m: 0.03729
-    track_width_m: 0.18
-    cpr_left: 3959  # CPR değerleri mikrodenetleyicide olan değer ile aynı olmalıdır.
-    cpr_right: 3963 # CPR değerleri mikrodenetleyicide olan değer ile aynı olmalıdır.
+    # Must match the firmware exactly
+    wheel_radius_m: 0.10
+    track_width_m: 0.47
+
+    cpr_left: 12000
+    cpr_right: 12000
 
     # ENC dt guard (seconds)
     enc_dt_min_s: 0.0
