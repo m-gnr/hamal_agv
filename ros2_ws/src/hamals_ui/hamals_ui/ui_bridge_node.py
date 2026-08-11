@@ -20,6 +20,7 @@ from ament_index_python.packages import get_package_share_directory
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 from std_msgs.msg import String
+from std_srvs.srv import Trigger
 
 
 # ─────────────────────────────────────────────────────────────
@@ -208,6 +209,9 @@ class UIBridgeNode(Node):
         self._cmd_sub = self.create_subscription(
             String, "/ui/cmd", self._cmd_callback, 10
         )
+        self._mission_start_client = self.create_client(Trigger, "/hamal/start_mission")
+        self._mission_cancel_client = self.create_client(Trigger, "/hamal/cancel_mission")
+        self._mission_started_at = None
 
         if self._mode == "live":
             self._setup_live_subscriptions()
@@ -298,6 +302,10 @@ class UIBridgeNode(Node):
             if not msg_field or not state_key:
                 continue
 
+            if state_key == "_mission_status":
+                self._apply_mission_status(str(getattr(msg, "data", "")))
+                continue
+
             if state_key.startswith("_") and state_key.endswith("_json"):
                 raw = getattr(msg, "data", "")
                 if raw:
@@ -323,6 +331,51 @@ class UIBridgeNode(Node):
                 pass
 
         self._state["connection"]["robot"] = True
+
+    def _apply_mission_status(self, raw: str):
+        """Map hamals_mission's STAGE|message status to dashboard fields."""
+        stage, _, message = raw.partition("|")
+        stage = stage.strip()
+        mapping = {
+            "BASLADI": ("task_processing", "Görev başladı"),
+            "QR_ARIYOR": ("moving_empty", "QR aranıyor"),
+            "QR_BULUNDU": ("moving_empty", "QR algılandı"),
+            "ILERI": ("moving_empty", "QR sonrası ilerliyor"),
+            "FORK_INDIR": ("task_processing", "Fork indiriliyor"),
+            "CIZGI": ("moving_empty", "Çizgi takip ediliyor"),
+            "FORK_KALDIR": ("moving_loaded", "Yük kaldırılıyor"),
+            "GERI_PICKUP": ("moving_loaded", "Yükle geri çıkıyor"),
+            "GIDIYOR_D2": ("moving_loaded", "Kapıya gidiyor"),
+            "VARDI_D2": ("waiting_plc", "Kapıya vardı"),
+            "D2_BEKLE": ("waiting_plc", "Kapıda bekliyor"),
+            "GIDIYOR_B2": ("moving_loaded", "Bırakma noktasına gidiyor"),
+            "VARDI_B2": ("task_processing", "Bırakma noktasına vardı"),
+            "FORK_BIRAK": ("task_processing", "Yük bırakılıyor"),
+            "GERI_CIK": ("returning_home", "Paletten çıkıyor"),
+            "GIDIYOR_HOME": ("returning_home", "Başlangıca dönüyor"),
+            "VARDI_HOME": ("returning_home", "Başlangıca vardı"),
+            "TAMAMLANDI": ("idle", "Görev tamamlandı"),
+            "IPTAL": ("idle", "Görev iptal edildi"),
+            "HATA": ("error", "Görev hatası"),
+        }
+        if stage not in mapping:
+            return
+        fsm, fallback = mapping[stage]
+        mission = self._state["mission"]
+        mission["fsm"] = fsm
+        mission["step"] = message.strip() or fallback
+        if self._mission_started_at is None and stage not in {"TAMAMLANDI", "IPTAL", "HATA"}:
+            self._mission_started_at = time.monotonic()
+        if self._mission_started_at is not None:
+            mission["elapsed_s"] = int(time.monotonic() - self._mission_started_at)
+        if stage in {"TAMAMLANDI", "IPTAL", "HATA"}:
+            self._mission_started_at = None
+
+        self._state["messages"].insert(0, {
+            "ts": time.strftime("%H:%M:%S"), "dir": "robot2plc",
+            "text": mission["step"],
+        })
+        self._state["messages"] = self._state["messages"][:self._msg_buf]
 
     def _apply_json_topic(self, key: str, data: dict):
         if key == "_mission_json":
@@ -530,12 +583,36 @@ class UIBridgeNode(Node):
             self.get_logger().info("CMD: connect_plc (no-op: plc package not yet present)")
         elif cmd_type == "set_ready":
             self.get_logger().info("CMD: set_ready (no-op: mission_manager not yet present)")
+        elif cmd_type == "start_mission":
+            self._call_mission_service(self._mission_start_client, "Görev başlatma")
+        elif cmd_type == "cancel_mission":
+            self._call_mission_service(self._mission_cancel_client, "Görev iptali")
         elif cmd_type == "mapping":
             self.get_logger().info(f"CMD: mapping action={payload.get('action') if isinstance(payload, dict) else payload}")
         elif cmd_type == "define_route":
             self.get_logger().info("CMD: define_route (no-op)")
         else:
             self.get_logger().warn(f"Unknown /ui/cmd type: {cmd_type}")
+
+    def _call_mission_service(self, client, action: str):
+        if not client.wait_for_service(timeout_sec=0.5):
+            self._state["mission"]["fsm"] = "error"
+            self._state["mission"]["step"] = "Mission server bağlı değil"
+            self.get_logger().warn(f"{action} rejected: service unavailable")
+            return
+        future = client.call_async(Trigger.Request())
+
+        def finished(result):
+            try:
+                response = result.result()
+                if not response.success:
+                    self._state["mission"]["fsm"] = "error"
+                    self._state["mission"]["step"] = response.message or f"{action} başarısız"
+            except Exception as exc:
+                self._state["mission"]["fsm"] = "error"
+                self._state["mission"]["step"] = f"{action} hatası: {exc}"
+
+        future.add_done_callback(finished)
 
     def _handle_estop(self):
         self._state["estop"]["active"] = True
@@ -587,6 +664,10 @@ class UIBridgeNode(Node):
     # ─────────────────────────────────────────────────────────
     def _publish_state(self):
         self._state["meta"]["ts"] = time.time()
+        if self._mission_started_at is not None:
+            elapsed = int(time.monotonic() - self._mission_started_at)
+            self._state["mission"]["elapsed_s"] = elapsed
+            self._state["mission"]["timer"]["elapsed_s"] = elapsed
         batt = self._state["battery"]
         if batt["current"] > 0.1:
             cap_wh = batt["voltage"] * 10.0

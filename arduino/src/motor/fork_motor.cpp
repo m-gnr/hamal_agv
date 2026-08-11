@@ -10,11 +10,11 @@ namespace fork_motor {
 void begin() {
     pinMode(fork_config::RPWM_PIN, OUTPUT);
     pinMode(fork_config::LPWM_PIN, OUTPUT);
-    pinMode(fork_config::R_EN_PIN, OUTPUT);
-    pinMode(fork_config::L_EN_PIN, OUTPUT);
+    //pinMode(fork_config::R_EN_PIN, OUTPUT);
+    //pinMode(fork_config::L_EN_PIN, OUTPUT);
 
-    digitalWrite(fork_config::R_EN_PIN, HIGH);
-    digitalWrite(fork_config::L_EN_PIN, HIGH);
+    //digitalWrite(fork_config::R_EN_PIN, HIGH);
+    //digitalWrite(fork_config::L_EN_PIN, HIGH);
 
     motorStop();
 }
@@ -37,3 +37,4 @@ void motorStop() {
 
 }  // namespace fork_motor
 }  // namespace hamals
+

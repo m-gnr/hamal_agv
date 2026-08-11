@@ -12,16 +12,18 @@ class TeleopNode(Node):
         super().__init__('teleop_node')
 
         self.declare_parameter('publish_rate_hz', 20.0)
+        
         self.declare_parameter('cmd_vel_topic', '/cmd_vel')
+    
         self.declare_parameter('linear_speed', 0.05)
         self.declare_parameter('linear_min', 0.0)
-        self.declare_parameter('linear_max', 0.1)
+        self.declare_parameter('linear_max', 0.3)
         self.declare_parameter('linear_step', 0.01)
 
-        self.declare_parameter('angular_speed', 0.05)
+        self.declare_parameter('angular_speed', 0.5)
         self.declare_parameter('angular_min', 0.0)
-        self.declare_parameter('angular_max', 0.10)
-        self.declare_parameter('angular_step', 0.01)
+        self.declare_parameter('angular_max', 1.5)
+        self.declare_parameter('angular_step', 0.001)
 
         self.declare_parameter('key_forward', 'w')
         self.declare_parameter('key_backward', 's')
@@ -80,6 +82,8 @@ Speed adjust:
         key = self.get_key()
 
         if key:
+            speed_changed = key in ('1', '2', '3', '4')
+
             if key == '1':
                 self.linear_speed -= self.get_parameter('linear_step').value
             elif key == '2':
@@ -99,6 +103,12 @@ Speed adjust:
                 self.get_parameter('angular_min').value,
                 self.get_parameter('angular_max').value
             )
+
+            if speed_changed:
+                self.get_logger().info(
+                    f"linear_speed = {self.linear_speed:.3f} m/s | "
+                    f"angular_speed = {self.angular_speed:.3f} rad/s"
+                )
 
             if key == self.get_parameter('key_forward').value:
                 self.current_linear_cmd = self.linear_speed

@@ -10,8 +10,8 @@ namespace fork_config {
 
 constexpr int RPWM_PIN = FORK_RPWM;
 constexpr int LPWM_PIN = FORK_LPWM;
-constexpr int R_EN_PIN = FORK_R_EN;
-constexpr int L_EN_PIN = FORK_L_EN;
+//constexpr int R_EN_PIN = FORK_R_EN;
+//constexpr int L_EN_PIN = FORK_L_EN;
 constexpr int UPPER_LIMIT_PIN = FORK_LIMIT_TOP;
 constexpr int LOWER_LIMIT_PIN = FORK_LIMIT_BOT;
 

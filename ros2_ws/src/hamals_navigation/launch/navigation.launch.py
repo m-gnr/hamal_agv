@@ -1,3 +1,5 @@
+
+
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -21,10 +23,10 @@ def generate_launch_description():
         DeclareLaunchArgument('nav2_params_file', default_value=nav2_params_default),
         DeclareLaunchArgument('autostart', default_value='true'),
         DeclareLaunchArgument(
-            'map',
-            default_value='/home/m-gnr/maps/hamals_map.yaml',
-            description='Full path to map yaml file.'
-        ),
+       'map',
+    default_value='/ros2_ws/src/hamals_slam/maps/map.yaml',
+    description='Full path to map yaml file.'
+),
     ]
 
     nav2_localization = IncludeLaunchDescription(
@@ -51,4 +53,17 @@ def generate_launch_description():
         }.items(),
     )
 
-    return LaunchDescription(declare_args + [nav2_localization, nav2_navigation])
+    # Nav2 ile birlikte gorev sunucusu da kalksin. Abdullah Ekledi.
+    mission_server = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(
+                get_package_share_directory('hamals_mission'),
+                'launch', 'mission.launch.py',
+            )
+        ),
+    )
+
+
+    return LaunchDescription(
+        declare_args + [nav2_localization, nav2_navigation, mission_server]
+    )

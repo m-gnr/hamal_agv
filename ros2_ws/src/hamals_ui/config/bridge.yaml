@@ -75,12 +75,12 @@ sources:
       - { msg_field: "data", state_key: "switch.mode", default: "auto" }
 
   # ── Mission / FSM ───────────────────────────────────────────────────────
-  # Published by mission_manager (not yet implemented — stays offline)
-  - topic: /mission/state
+  # hamals_mission publishes "STAGE|message" while executing the real task.
+  - topic: /hamal/mission_status
     type: std_msgs/String
     qos: reliable
     fields:
-      - { msg_field: "data", state_key: "_mission_json", default: "" }
+      - { msg_field: "data", state_key: "_mission_status", default: "" }
 
   # ── Navigation goal / feedback ──────────────────────────────────────────
   - topic: /nav/status

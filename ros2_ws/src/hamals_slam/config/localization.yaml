@@ -14,4 +14,5 @@ slam_toolbox:
 
 
     resolution: 0.03
-    max_laser_range: 8.0
+    max_laser_range: 3.5
+    

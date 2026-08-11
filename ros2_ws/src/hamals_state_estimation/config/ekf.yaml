@@ -1,11 +1,14 @@
-
-
 ekf_filter_node:
   ros__parameters:
     use_sim_time: false
 
-    # EKF update rate
-    frequency: 50.0
+    # EKF update rate eski degerler
+    #frequency: 50.0
+    #sensor_timeout: 0.1
+
+
+    # yous degileri
+    frequency: 20.0
     sensor_timeout: 0.1
 
     # 2D mobile base

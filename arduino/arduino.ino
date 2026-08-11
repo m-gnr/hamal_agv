@@ -142,33 +142,28 @@ void loop() {
     hamals::fork_controller::update();
     hamals::fork_protocol::publishForkStateIfDue();
 
-    // --------------------
-    // ENCODER SAMPLING (every loop)
-    // --------------------
+    // Enkoder farkları her turda okunur. Kontrol döngüsü ile telemetri
+    // farklı periyotlarda çalıştığından, telemetri için ayrıca biriktirilir.
     static int32_t last_dL_ctrl = 0;
     static int32_t last_dR_ctrl = 0;
 
-    // Accumulate ticks for telemetry (ENC_TX_DT_S window)
+    // ENC_TX_DT_S aralığında gönderilecek toplam tik sayıları.
     static int32_t enc_accum_L = 0;
     static int32_t enc_accum_R = 0;
 
     const int32_t dL_step = leftEncoder.readDelta();
     const int32_t dR_step = rightEncoder.readDelta();
 
-    // Control uses per-loop deltas
+    // PID hesabı yalnızca bu turdaki enkoder farkını kullanır.
     last_dL_ctrl = dL_step;
     last_dR_ctrl = dR_step;
 
-    // Telemetry sends summed ticks since last ENC publish
+    // ROS tarafına son yayından beri biriken tikler gönderilir.
     enc_accum_L += dL_step;
     enc_accum_R += dR_step;
 
-    // --------------------
-    // SERIAL TX (MCU → ROS) - independent of control tick
-    // Contract:
-    //   $ENC,t_us,dl,dr*CS @ ENC_TX_DT_S
-    //   $IMU,t_us,gz,ax,ay,az*CS @ IMU_TX_DT_S
-    // --------------------
+    // Seri telemetri kontrol çevriminden bağımsız gönderilir. Aynı turda iki
+    // mesaj çıkarsa ikisi de aynı mikro-saniye zaman damgasını paylaşır.
     bool sent_any = false;
     uint32_t t_us = 0;
 
@@ -184,9 +179,7 @@ void loop() {
         serial.sendImu(t_us, imu.getGz(), imu.getAx(), imu.getAy(), imu.getAz());
     }
 
-    // --------------------
-    // CONTROL LOOP (100 Hz / CONTROL_DT_S)
-    // --------------------
+    // Hız kontrolü CONTROL_DT_S periyodunda çalışır.
     if (!controlTimer.tick())
         return;
 
@@ -198,6 +191,7 @@ void loop() {
 
     if (serial.hasCmdVel()) {
         const CmdVel cmd = serial.getCmdVel();
+
         v_target = cmd.v;
         w_target = cmd.w;
         base_motion_active =
@@ -222,6 +216,7 @@ void loop() {
         pidR.reset();
     }
 
+    // Açısal hedef doğrudan hız komutundan alınır.
     const float w_cmd = w_target;
 
     velocityCmd.setTarget(v_target, w_cmd);
@@ -230,24 +225,24 @@ void loop() {
     float omegaLt = 0.0f, omegaRt = 0.0f;
     velocityCmd.getWheelTargets(omegaLt, omegaRt);
 
-    // Use per-loop encoder deltas for control (do NOT readDelta again)
+    // Enkoderi ikinci kez okumadan, bu turda yakalanan farkları kullan.
     const int32_t dL = last_dL_ctrl;
     const int32_t dR = last_dR_ctrl;
 
     const KinematicsInput kinIn{ dL, dR, dt };
     const KinematicsOutput kinOut = kinematics.update(kinIn);
 
-    const float pwmL = pidL.update(omegaLt, kinOut.omega_left, dt);
-    const float pwmR = pidR.update(omegaRt, kinOut.omega_right, dt);
+    float pwmL = pidL.update(omegaLt, kinOut.omega_left, dt);
+    float pwmR = pidR.update(omegaRt, kinOut.omega_right, dt);
 
 
 
-// yous degistirdi 
+    // Tekerlekler arasındaki ölçülmüş mekanik hız farkını son aşamada düzeltir.
+    pwmL *= WHEEL_TRIM_L;
+    pwmR *= WHEEL_TRIM_R;
 
-if (pwmL >= 0)
-    motorL.setPWM((int)pwmL + 6);   
-else
-    motorL.setPWM((int)pwmL - 6);   
 
-motorR.setPWM((int)pwmR);
+    motorL.setPWM((int)pwmL);
+    motorR.setPWM((int)pwmR);
+
 }

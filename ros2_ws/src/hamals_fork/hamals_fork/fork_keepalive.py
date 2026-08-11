@@ -26,7 +26,10 @@ class ForkKeepalive:
             self._activate_if_requested("DOWN")
             return
 
-        self.stop()
+        # Hareketsiz state: sadece zaten aktif bir hareket varsa durdur.
+        # İstek beklemedeyken silme, yoksa MCU MOVING demeden keepalive ölür. Abdullah Değiştirdi
+        if self._active_command is not None:
+            self.stop()
 
     def command_to_publish(self) -> str | None:
         return self._active_command

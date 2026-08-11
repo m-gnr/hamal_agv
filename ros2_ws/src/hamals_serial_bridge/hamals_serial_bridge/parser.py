@@ -6,14 +6,11 @@ from .protocol import decode_line
 
 class LineParser:
     """
-    Serial framed protocol parser.
+    Seri çerçeve protokolü ayrıştırıcısı.
 
-    Responsibilities:
-    - Accumulate partial serial input
-    - Realign on '$'
-    - Split by newline
-    - Decode framed protocol lines
-    - Track valid / invalid frame statistics
+    Seri porttan parça parça gelen veriyi tamponlar; '$' ile yeniden
+    hizalanır ve yalnızca tamamlanmış satırları protokole gönderir.
+    Geçerli/geçersiz çerçeve sayaçları tanılama amaçlı tutulur.
     """
 
     def __init__(self):
@@ -33,12 +30,12 @@ class LineParser:
         self.bytes_received += len(data)
         self._buffer += data
 
-        # Realign buffer to first '$'
+        # Gürültü veya eksik veri sonrası ilk çerçeve başlangıcına hizalan.
         start_idx = self._buffer.find('$')
         if start_idx > 0:
             self._buffer = self._buffer[start_idx:]
 
-        # Process complete frames only
+        # Sonraki çağrıda tamamlanabilecek yarım çerçeveyi tamponda bırak.
         while '\n' in self._buffer:
             line, self._buffer = self._buffer.split('\n', 1)
             line = line.strip()
@@ -52,7 +49,7 @@ class LineParser:
                 self.valid_frames += 1
                 messages.append(decoded)
             else:
-                # This was a complete line but invalid frame
+                # Satır tamamlandı ancak checksum ya da biçim geçersiz.
                 self.invalid_frames += 1
 
         return messages

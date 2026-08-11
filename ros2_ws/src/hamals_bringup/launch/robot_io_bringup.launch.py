@@ -3,6 +3,11 @@ from launch.actions import IncludeLaunchDescription, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 
+from launch.substitutions import Command, PathJoinSubstitution
+from launch_ros.substitutions import FindPackageShare
+from launch_ros.parameter_descriptions import ParameterValue
+
+
 from ament_index_python.packages import get_package_share_directory
 
 import os
@@ -27,15 +32,37 @@ def launch_setup(context, *args, **kwargs):
     )
 
     lidar_node = Node(
-        package='hls_lfcd_lds_driver',
-        executable='hlds_laser_publisher',
-        name='hlds_laser_publisher',
+        package='sllidar_ros2',
+        executable='sllidar_node',
+        name='sllidar_node',
         output='screen',
         parameters=[
             {
-                'port': '/dev/ttyUSB0',
+                'channel_type': 'serial',
+                'serial_port': '/dev/ttyUSB0',
+                'serial_baudrate': 1000000,
                 'frame_id': 'lidar_link',
+                'inverted': False,
+                'angle_compensate': True,
+                'scan_mode': 'DenseBoost',
             }
+        ],
+        remappings=[
+            ('scan', 'scan_raw'),   # ham (filtresiz) veri burada yayinlanir
+        ]
+    )
+
+    laser_filter_config = os.path.join(bringup_share, 'config', 'laser_filters.yaml')
+
+    laser_filter_node = Node(
+        package='laser_filters',
+        executable='scan_to_scan_filter_chain',
+        name='scan_to_scan_filter_chain',
+        output='screen',
+        parameters=[laser_filter_config],
+        remappings=[
+            ('scan', 'scan_raw'),      # girdi: ham veri
+            ('scan_filtered', 'scan'), # cikti: slam_toolbox'un bekledigi /scan
         ]
     )
 
@@ -43,6 +70,7 @@ def launch_setup(context, *args, **kwargs):
         serial_bridge_launch,
         odometry_launch,
         lidar_node,
+        laser_filter_node,
     ]
 
 

@@ -54,10 +54,10 @@ expected_nodes:
   - /nav2/behavior_server
   - /nav2/lifecycle_manager
   - /manual_teleop_node
+  - /hamal_mission_server
 
 # Nodes planned but not yet implemented — start as active:false in mock
 planned_nodes:
-  - /mission_manager
   - /plc_bridge
   - /safety_node
   - /qr_node

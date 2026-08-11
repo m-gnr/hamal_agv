@@ -79,12 +79,12 @@
         <LabelRow label="Geçen Süre">
           <span class="mono">{{ fmtTime(s.mission?.elapsed_s) }}</span>
         </LabelRow>
-        <div class="action-row">
-          <button class="action-btn" @click="send('set_ready', {})">
-            <Radio :size="13" /> Hazır Bildir
+        <div v-if="!isMock" class="action-row">
+          <button class="action-btn action-primary" :disabled="missionActive" @click="send('start_mission', {})">
+            <Play :size="13" /> Görevi Başlat
           </button>
-          <button class="action-btn" @click="send('connect_plc', {})">
-            <PlugZap :size="13" /> PLC Bağlan
+          <button class="action-btn action-danger" :disabled="!missionActive" @click="send('cancel_mission', {})">
+            <Square :size="13" /> Görevi İptal Et
           </button>
         </div>
       </Card>
@@ -141,7 +141,7 @@
 import { computed } from 'vue'
 import {
   GitBranch, ClipboardList, Server as ServerIcon, MessageSquare,
-  Radio, PlugZap, Play,
+  Play, Square,
   Circle, CheckCircle2, AlertCircle, XCircle, ArrowRight,
 } from 'lucide-vue-next'
 import Card from './Card.vue'
@@ -179,6 +179,7 @@ const FSM_CLS = {
 const DOOR_TR = { granted: 'VERİLDİ', waiting: 'BEKLİYOR', none: '—' }
 
 const fsmCls = computed(() => FSM_CLS[s.value.mission?.fsm] || 'fsm-dim')
+const missionActive = computed(() => !['idle', 'error', 'emergency_stop'].includes(s.value.mission?.fsm || 'idle'))
 const playbackStatus = computed(() => s.value.meta?.playback_status || 'paused')
 const doorVariant = computed(() => {
   const d = s.value.plc?.door_permission
@@ -250,6 +251,9 @@ function sendScenario(name) { emit('send-cmd', { type: 'scenario', name }) }
   transition: color .15s, border-color .15s;
 }
 .action-btn:hover { color: var(--text); border-color: var(--accent); }
+.action-btn:disabled { cursor: not-allowed; opacity: .45; }
+.action-primary { color: var(--green); border-color: rgba(34,197,94,.4); }
+.action-danger { color: var(--red); border-color: rgba(239,68,68,.4); }
 
 /* PLC signal */
 .plc-header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
