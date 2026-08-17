@@ -3,15 +3,9 @@ from launch.actions import IncludeLaunchDescription, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 
-from launch.substitutions import Command, PathJoinSubstitution
-from launch_ros.substitutions import FindPackageShare
-from launch_ros.parameter_descriptions import ParameterValue
-
-
 from ament_index_python.packages import get_package_share_directory
 
 import os
-import yaml
 
 
 def launch_setup(context, *args, **kwargs):
@@ -62,7 +56,7 @@ def launch_setup(context, *args, **kwargs):
         parameters=[laser_filter_config],
         remappings=[
             ('scan', 'scan_raw'),      # girdi: ham veri
-            ('scan_filtered', 'scan'), # cikti: slam_toolbox'un bekledigi /scan
+            ('scan_filtered', 'scan'),  # cikti: slam_toolbox'un bekledigi /scan
         ]
     )
 

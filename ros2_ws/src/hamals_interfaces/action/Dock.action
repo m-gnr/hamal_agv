@@ -1,0 +1,14 @@
+string station_id
+string operation
+string expected_qr
+string profile
+---
+bool success
+string message
+float32 position_error_m
+float32 yaw_error_deg
+---
+string phase
+bool qr_verified
+bool line_detected
+float32 distance_travelled_m

@@ -1,0 +1,5 @@
+string door_id
+---
+bool found
+hamals_interfaces/Door door
+string message

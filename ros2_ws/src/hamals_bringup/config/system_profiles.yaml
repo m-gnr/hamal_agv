@@ -1,0 +1,15 @@
+profiles:
+  competition:
+    hardware: true
+    world_model: competition
+    plc: mock  # replace with official adapter when protocol is published
+    ui: live
+  mapping:
+    hardware: true
+    slam: true
+    teleop: true
+  simulation:
+    hardware: false
+    use_sim_time: true
+    world_model: simulation
+    plc: mock

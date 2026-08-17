@@ -1,0 +1,5 @@
+string station_id
+---
+bool found
+hamals_interfaces/Station station
+string message

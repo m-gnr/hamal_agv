@@ -19,6 +19,8 @@ class SerialBridgeConfig:
     imu_topic: str
     mcu_fork_cmd_topic: str
     mcu_fork_state_topic: str
+    estop_topic: str
+    mode_topic: str
 
     # Frames
     imu_frame_id: str
@@ -55,6 +57,8 @@ def declare_parameters(node: Node) -> None:
     node.declare_parameter('imu_topic', '/imu/data')
     node.declare_parameter('mcu_fork_cmd_topic', '/mcu/fork_cmd')
     node.declare_parameter('mcu_fork_state_topic', '/mcu/fork_state')
+    node.declare_parameter('estop_topic', '/estop')
+    node.declare_parameter('mode_topic', '/switch/mode')
 
     node.declare_parameter('imu_frame_id', 'imu_link')
 
@@ -89,6 +93,8 @@ def load_config(node: Node) -> SerialBridgeConfig:
         imu_topic=str(node.get_parameter('imu_topic').value),
         mcu_fork_cmd_topic=str(node.get_parameter('mcu_fork_cmd_topic').value),
         mcu_fork_state_topic=str(node.get_parameter('mcu_fork_state_topic').value),
+        estop_topic=str(node.get_parameter('estop_topic').value),
+        mode_topic=str(node.get_parameter('mode_topic').value),
 
         imu_frame_id=str(node.get_parameter('imu_frame_id').value),
 

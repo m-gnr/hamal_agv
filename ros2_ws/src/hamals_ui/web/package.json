@@ -2,7 +2,7 @@
   "name": "hamals-ui",
   "version": "0.0.1",
   "private": true,
-  "description": "TEKNOFEST 2026 HAMALS AGV jury web interface",
+  "description": "HAMALS AGV industrial operator web interface",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

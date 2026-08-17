@@ -2,7 +2,7 @@
 #
 # Mimari sözleşme:
 #   - map -> odom : AMCL
-#   - odom -> base_footprint : EKF (hamals_localization)
+#   - odom -> base_footprint : EKF (hamals_state_estimation)
 #   - base_footprint -> base_link -> lidar_link : URDF / robot_state_publisher
 #   - /scan : LiDAR (frame_id=lidar_link)
 #   - /cmd_vel : Nav2 -> (remap) -> serial_bridge -> MCU

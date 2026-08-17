@@ -9,7 +9,7 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from hamals_interfaces.msg import ForkState, WheelTicks
 from sensor_msgs.msg import Imu
-from std_msgs.msg import String
+from std_msgs.msg import Bool, String
 
 import serial
 
@@ -98,6 +98,8 @@ class SerialBridgeNode(Node):
             self.cfg.imu_topic,
             10
         )
+        self.estop_pub = self.create_publisher(Bool, self.cfg.estop_topic, 10)
+        self.mode_pub = self.create_publisher(String, self.cfg.mode_topic, 10)
 
         if self.cfg.debug:
             self.create_timer(1.0, self._print_debug_panel)
@@ -331,6 +333,10 @@ class SerialBridgeNode(Node):
 
         elif msg_type == 'fork_state':
             self._publish_fork_state(msg)
+
+        elif msg_type == 'safety':
+            self.estop_pub.publish(Bool(data=bool(msg.get('estop', False))))
+            self.mode_pub.publish(String(data='manual' if msg.get('manual', False) else 'auto'))
 
     # =====================================================
     # ENC → /wheel_ticks

@@ -1,6 +1,6 @@
 # hamals_ui
 
-TEKNOFEST 2026 Sanayide Robotik Uygulamalar — HAMALS AGV jüri web arayüzü.
+Endüstriyel otonom lojistik — HAMALS AGV operatör web arayüzü.
 
 **Mimari:**  
 `Vue 3 SPA` ↔ `ws://robot:9090` (rosbridge) ↔ `ui_bridge_node` ↔ ROS 2 topic'leri  

@@ -1,0 +1,9 @@
+builtin_interfaces/Time stamp
+bool valid
+string profile
+string frame_id
+string config_checksum
+string[] station_ids
+string[] qr_ids
+hamals_interfaces/Station[] stations
+string error_message

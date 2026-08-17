@@ -11,6 +11,8 @@
     imu_topic: /imu/data
     mcu_fork_cmd_topic: /mcu/fork_cmd
     mcu_fork_state_topic: /mcu/fork_state
+    estop_topic: /estop
+    mode_topic: /switch/mode
 
     # IMU publish options
     publish_linear_accel: true

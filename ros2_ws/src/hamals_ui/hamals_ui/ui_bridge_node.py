@@ -638,7 +638,7 @@ class UIBridgeNode(Node):
             tw.linear.x = linear
             tw.angular.z = angular
             if not hasattr(self, "_cmd_vel_pub"):
-                self._cmd_vel_pub = self.create_publisher(Twist, "/cmd_vel", 10)
+                self._cmd_vel_pub = self.create_publisher(Twist, "/cmd_vel/manual", 10)
             self._cmd_vel_pub.publish(tw)
         else:
             self._state["pose"]["speed"] = abs(linear)

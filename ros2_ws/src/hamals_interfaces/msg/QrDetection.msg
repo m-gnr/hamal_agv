@@ -1,0 +1,9 @@
+builtin_interfaces/Time stamp
+string frame_id
+string payload
+bool detected
+float32 x
+float32 y
+float32 z
+float32 yaw_deg
+float32 confidence

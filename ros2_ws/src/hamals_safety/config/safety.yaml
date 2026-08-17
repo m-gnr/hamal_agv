@@ -1,0 +1,6 @@
+hamals_safety:
+  ros__parameters:
+    obstacle_clear_sec: 0.75
+    obstacle_stale_sec: 1.0
+    require_obstacle_heartbeat: true
+    initial_mode: auto

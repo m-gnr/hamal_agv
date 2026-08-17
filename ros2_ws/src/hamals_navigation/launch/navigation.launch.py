@@ -3,7 +3,8 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription
+from launch_ros.actions import SetRemap
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
@@ -53,17 +54,10 @@ def generate_launch_description():
         }.items(),
     )
 
-    # Nav2 ile birlikte gorev sunucusu da kalksin. Abdullah Ekledi.
-    mission_server = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(
-                get_package_share_directory('hamals_mission'),
-                'launch', 'mission.launch.py',
-            )
-        ),
-    )
-
-
     return LaunchDescription(
-        declare_args + [nav2_localization, nav2_navigation, mission_server]
+        declare_args + [GroupAction([
+            SetRemap(src='/cmd_vel', dst='/cmd_vel/nav'),
+            nav2_localization,
+            nav2_navigation,
+        ])]
     )

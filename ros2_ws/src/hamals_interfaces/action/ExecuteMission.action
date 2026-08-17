@@ -1,0 +1,7 @@
+hamals_interfaces/MissionTask task
+---
+bool success
+string final_state
+string message
+---
+hamals_interfaces/MissionState state

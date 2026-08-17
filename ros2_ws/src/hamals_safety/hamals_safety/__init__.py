@@ -1,0 +1,1 @@
+"""HAMAL safety supervisor."""

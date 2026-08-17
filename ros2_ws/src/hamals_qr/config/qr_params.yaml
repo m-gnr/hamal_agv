@@ -6,3 +6,10 @@ qr_node:
     detected_topic: "/qr/detected"
     text_topic: "/qr/text"
     overlay_topic: "/qr/overlay"
+    result_topic: "/qr/detection"
+    camera_frame: "camera_link"
+    marker_size_m: 0.10
+    fx: 900.0
+    fy: 900.0
+    cx: 640.0
+    cy: 360.0

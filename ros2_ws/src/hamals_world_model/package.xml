@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>hamals_world_model</name>
+  <version>0.1.0</version>
+  <description>Validated semantic field model and route graph for HAMAL AGV.</description>
+  <maintainer email="m_gnr@icloud.com">murat</maintainer>
+  <license>MIT</license>
+  <depend>rclpy</depend>
+  <depend>geometry_msgs</depend>
+  <depend>hamals_interfaces</depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <test_depend>python3-pytest</test_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>

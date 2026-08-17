@@ -3,7 +3,7 @@
 <package format="3">
   <name>hamals_ui</name>
   <version>0.0.1</version>
-  <description>TEKNOFEST 2026 HAMALS AGV jury web interface — config-driven ROS 2 bridge + Vue 3 SPA.</description>
+  <description>HAMALS AGV operator web interface — config-driven ROS 2 bridge + Vue 3 SPA.</description>
   <maintainer email="m_gnr@icloud.com">m-gnr</maintainer>
   <license>MIT</license>
 
@@ -12,6 +12,7 @@
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
   <depend>sensor_msgs</depend>
+  <depend>hamals_interfaces</depend>
 
   <exec_depend>rosbridge_server</exec_depend>
 

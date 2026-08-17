@@ -1,0 +1,1 @@
+"""HAMAL PLC protocol adapters."""

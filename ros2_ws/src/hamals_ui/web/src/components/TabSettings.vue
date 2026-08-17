@@ -86,7 +86,7 @@
       <div class="about-row">
         <span class="about-item">HAMALS AGV</span>
         <span class="about-sep">·</span>
-        <span class="about-item">TEKNOFEST 2026 Sanayide Robotik Uygulamalar</span>
+        <span class="about-item">Endüstriyel Otonom Lojistik Sistemi</span>
         <span class="about-sep">·</span>
         <span class="about-item">ROS 2 Humble</span>
         <span class="about-sep">·</span>

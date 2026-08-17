@@ -1,7 +1,7 @@
 # hamals_ui topology.yaml
 # Yarışma alanı topoloji grafiği (Şartname Şekil-1).
-# Koordinatlar şimdilik pixel-based (canvas 800x600).
-# Metrik (metre) koordinatlar SLAM sonrası eklenecek.
+# DISPLAY-ONLY legacy canvas layout. It is never used for robot control.
+# Metric control geometry is owned by hamals_world_model.
 
 # --- Düğüm noktaları ---
 nodes:

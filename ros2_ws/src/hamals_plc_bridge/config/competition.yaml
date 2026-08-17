@@ -1,0 +1,4 @@
+hamals_plc_bridge:
+  ros__parameters:
+    transport: pending_official_protocol
+    auto_grant_door: false

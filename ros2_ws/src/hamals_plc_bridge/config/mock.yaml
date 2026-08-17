@@ -1,0 +1,6 @@
+hamals_plc_bridge:
+  ros__parameters:
+    transport: mock
+    mock_pickup: A1
+    mock_dropoff: B1
+    auto_grant_door: true

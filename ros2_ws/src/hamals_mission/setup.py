@@ -6,27 +6,29 @@ package_name = 'hamals_mission'
 
 setup(
     name=package_name,
-    version='0.0.0',
+    version='0.1.0',
     packages=find_packages(exclude=['test']),
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
+        (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
+        (
+            os.path.join('share', package_name, 'config', 'mission_templates'),
+            glob('config/mission_templates/*.yaml'),
+        ),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='hamal',
     maintainer_email='al_dokan_20@hotmail.com',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='Config-driven hierarchical mission FSM for HAMAL AGV',
+    license='MIT',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'mission_server = hamals_mission.mission_server:main',
-            'goto_b = hamals_mission.goto_b:main',
-            'test_goto = hamals_mission.test_goto:main',
-            "waypoint_helper = hamals_mission.waypoint_helper:main",
+            'mission_server = hamals_mission.mission_node:main',
         ],
     },
 )

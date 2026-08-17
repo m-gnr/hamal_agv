@@ -35,6 +35,15 @@ def test_decode_fork_state_bad_checksum_returns_none():
     assert decode_line("$FORK_STATE,12345678,1,0,0,0*00\n") is None
 
 
+def test_decode_physical_safety_inputs():
+    assert decode_line(make_frame("SAFETY,42,1,0")) == {
+        "type": "safety",
+        "t_us": 42,
+        "estop": True,
+        "manual": False,
+    }
+
+
 def test_encode_cmd_regression():
     payload = "CMD,0.100,-0.200"
     assert encode_cmd(0.1, -0.2) == make_frame(payload)

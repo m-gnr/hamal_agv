@@ -1,0 +1,10 @@
+string id
+string type
+string frame_id
+geometry_msgs/Point32[] zone
+geometry_msgs/Pose2D target_pose
+geometry_msgs/Pose2D approach_pose
+geometry_msgs/Pose2D exit_pose
+string expected_qr
+string docking_profile
+string approach_node

@@ -8,6 +8,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
@@ -17,13 +18,25 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/ObstacleRegionState.msg"
   "msg/ObstacleState.msg"
   "msg/WheelTicks.msg"
-  
-  # srv
-  # "srv/OrneSrv.srv"
-  
-  # action
-  # "action/OrneAction.action"
-  DEPENDENCIES builtin_interfaces std_msgs
+  "msg/MissionTask.msg"
+  "msg/MissionState.msg"
+  "msg/QrDetection.msg"
+  "msg/PlcState.msg"
+  "msg/SafetyState.msg"
+  "msg/WorldModelState.msg"
+  "msg/Station.msg"
+  "msg/DoorEvent.msg"
+  "msg/Door.msg"
+
+  "srv/PauseMission.srv"
+  "srv/ResumeMission.srv"
+  "srv/GetStation.srv"
+  "srv/PlanSemanticRoute.srv"
+  "srv/GetDoor.srv"
+
+  "action/ExecuteMission.action"
+  "action/Dock.action"
+  DEPENDENCIES builtin_interfaces std_msgs geometry_msgs
 )
 
 ament_export_dependencies(rosidl_default_runtime)

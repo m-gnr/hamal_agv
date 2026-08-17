@@ -1,0 +1,65 @@
+# Initial semantic industrial field model. Replace metric values with the surveyed field.
+schema_version: 1
+frame_id: map
+map: package://hamals_slam/maps/map.yaml
+
+stations:
+  A1: {type: pickup, approach_node: A1_APPROACH, expected_qr: q2, docking_profile: pickup_default, zone: {frame_id: map, vertices: [{x: 0.0, y: 1.1}, {x: 0.5, y: 1.1}, {x: 0.5, y: 1.7}, {x: 0.0, y: 1.7}]}, target_pose: {x: 0.25, y: 1.4, yaw_deg: 90.0}, approach_pose: {x: 0.25, y: 0.3, yaw_deg: 90.0}, exit_pose: {x: 0.25, y: 0.6, yaw_deg: 90.0}}
+  A2: {type: pickup, approach_node: A2_APPROACH, expected_qr: q3, docking_profile: pickup_default, zone: {frame_id: map, vertices: [{x: 1.4, y: 1.1}, {x: 1.9, y: 1.1}, {x: 1.9, y: 1.7}, {x: 1.4, y: 1.7}]}, target_pose: {x: 1.65, y: 1.4, yaw_deg: 90.0}, approach_pose: {x: 1.65, y: 0.3, yaw_deg: 90.0}, exit_pose: {x: 1.65, y: 0.6, yaw_deg: 90.0}}
+  A3: {type: pickup, approach_node: A3_APPROACH, expected_qr: q4, docking_profile: pickup_default, zone: {frame_id: map, vertices: [{x: 2.8, y: 1.1}, {x: 3.3, y: 1.1}, {x: 3.3, y: 1.7}, {x: 2.8, y: 1.7}]}, target_pose: {x: 3.05, y: 1.4, yaw_deg: 90.0}, approach_pose: {x: 3.05, y: 0.3, yaw_deg: 90.0}, exit_pose: {x: 3.05, y: 0.6, yaw_deg: 90.0}}
+  B1: {type: dropoff, approach_node: B1_APPROACH, expected_qr: q9, docking_profile: dropoff_default, zone: {frame_id: map, vertices: [{x: 6.3, y: -1.6}, {x: 6.9, y: -1.6}, {x: 6.9, y: -1.1}, {x: 6.3, y: -1.1}]}, target_pose: {x: 6.6, y: -1.35, yaw_deg: 0.0}, approach_pose: {x: 5.5, y: -1.35, yaw_deg: 0.0}, exit_pose: {x: 5.8, y: -1.35, yaw_deg: 0.0}}
+  B2: {type: dropoff, approach_node: B2_APPROACH, expected_qr: q8, docking_profile: dropoff_default, zone: {frame_id: map, vertices: [{x: 6.3, y: -0.3}, {x: 6.9, y: -0.3}, {x: 6.9, y: 0.3}, {x: 6.3, y: 0.3}]}, target_pose: {x: 6.6, y: 0.0, yaw_deg: 0.0}, approach_pose: {x: 5.5, y: 0.0, yaw_deg: 0.0}, exit_pose: {x: 5.8, y: 0.0, yaw_deg: 0.0}}
+  B3: {type: dropoff, approach_node: B3_APPROACH, expected_qr: q7, docking_profile: dropoff_default, zone: {frame_id: map, vertices: [{x: 6.3, y: 1.1}, {x: 6.9, y: 1.1}, {x: 6.9, y: 1.6}, {x: 6.3, y: 1.6}]}, target_pose: {x: 6.6, y: 1.35, yaw_deg: 0.0}, approach_pose: {x: 5.5, y: 1.35, yaw_deg: 0.0}, exit_pose: {x: 5.8, y: 1.35, yaw_deg: 0.0}}
+
+qr_markers:
+  q2: {station: A1}
+  q3: {station: A2}
+  q4: {station: A3}
+  q5: {purpose: door_outbound}
+  q6: {purpose: door_return}
+  q7: {station: B3}
+  q8: {station: B2}
+  q9: {station: B1}
+
+routes:
+  nodes:
+    START: {pose: {x: 0.5, y: -1.18, yaw_deg: 90.0}}
+    D1: {pose: {x: 0.25, y: 0.0, yaw_deg: 0.0}}
+    D2: {pose: {x: 1.65, y: 0.0, yaw_deg: 0.0}}
+    D3: {pose: {x: 3.05, y: 0.0, yaw_deg: 0.0}}
+    DOOR_W: {pose: {x: 4.0, y: 0.0, yaw_deg: 0.0}}
+    DOOR_E: {pose: {x: 4.8, y: 0.0, yaw_deg: 0.0}}
+    D4: {pose: {x: 5.5, y: 0.0, yaw_deg: 0.0}}
+    D5: {pose: {x: 5.5, y: -1.35, yaw_deg: -90.0}}
+    D6: {pose: {x: 5.5, y: 1.35, yaw_deg: 90.0}}
+    A1_APPROACH: {pose: {x: 0.25, y: 0.3, yaw_deg: 90.0}}
+    A2_APPROACH: {pose: {x: 1.65, y: 0.3, yaw_deg: 90.0}}
+    A3_APPROACH: {pose: {x: 3.05, y: 0.3, yaw_deg: 90.0}}
+    B1_APPROACH: {pose: {x: 5.5, y: -1.35, yaw_deg: 0.0}}
+    B2_APPROACH: {pose: {x: 5.5, y: 0.0, yaw_deg: 0.0}}
+    B3_APPROACH: {pose: {x: 5.5, y: 1.35, yaw_deg: 0.0}}
+  edges:
+    - {from: START, to: D1, bidirectional: true, cost: 1.0}
+    - {from: D1, to: D2, bidirectional: true, cost: 1.0}
+    - {from: D2, to: D3, bidirectional: true, cost: 1.0}
+    - {from: D3, to: DOOR_W, bidirectional: true, cost: 1.0}
+    - {from: DOOR_W, to: DOOR_E, bidirectional: true, cost: 1.0, door_controlled: MAIN_DOOR}
+    - {from: DOOR_E, to: D4, bidirectional: true, cost: 1.0}
+    - {from: D1, to: A1_APPROACH, bidirectional: true, cost: 1.0}
+    - {from: D2, to: A2_APPROACH, bidirectional: true, cost: 1.0}
+    - {from: D3, to: A3_APPROACH, bidirectional: true, cost: 1.0}
+    - {from: D4, to: D5, bidirectional: true, cost: 1.0}
+    - {from: D4, to: D6, bidirectional: true, cost: 1.0}
+    - {from: D5, to: B1_APPROACH, bidirectional: true, cost: 0.1}
+    - {from: D4, to: B2_APPROACH, bidirectional: true, cost: 0.1}
+    - {from: D6, to: B3_APPROACH, bidirectional: true, cost: 0.1}
+
+doors:
+  MAIN_DOOR:
+    controlled_edge: DOOR_W_TO_DOOR_E
+    plc_id: door_1
+    west_node: DOOR_W
+    east_node: DOOR_E
+    request_pose:
+      outbound: {x: 4.0, y: 0.0, yaw_deg: 0.0}
+      return: {x: 4.8, y: 0.0, yaw_deg: 180.0}

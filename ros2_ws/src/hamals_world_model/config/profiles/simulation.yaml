@@ -1,0 +1,3 @@
+schema_version: 1
+profile: simulation
+field: ../fields/industrial_field.yaml

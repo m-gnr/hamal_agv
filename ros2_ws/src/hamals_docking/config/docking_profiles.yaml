@@ -1,0 +1,10 @@
+hamals_docking:
+  ros__parameters:
+    speed_mps: 0.10
+    gain: 0.002
+    max_turn_rps: 0.30
+    pickup_distance_m: 1.50
+    dropoff_distance_m: 1.50
+    timeout_sec: 30.0
+    line_lost_sec: 0.75
+    supported_profiles: [pickup_default, dropoff_default]

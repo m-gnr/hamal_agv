@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import json
+import math
 
 import cv2
 import numpy as np
@@ -14,6 +15,7 @@ from rclpy.qos import qos_profile_sensor_data
 
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool, String
+from hamals_interfaces.msg import QrDetection
 
 from pyzbar.pyzbar import decode as qr_decode
 
@@ -36,6 +38,7 @@ class QRNode(Node):
 
         self.last_qr = ""
         self.last_overlay_sent = None
+        self.last_points = None
 
         self.hit_count = 0
         self.miss_count = 0
@@ -60,6 +63,9 @@ class QRNode(Node):
             params["overlay_topic"],
             10
         )
+        self.result_publisher = self.create_publisher(
+            QrDetection, params["result_topic"], 10
+        )
 
         self.image_subscriber = self.create_subscription(
             Image,
@@ -82,6 +88,13 @@ class QRNode(Node):
         self.declare_parameter("detected_topic", "/qr/detected")
         self.declare_parameter("text_topic", "/qr/text")
         self.declare_parameter("overlay_topic", "/qr/overlay")
+        self.declare_parameter("result_topic", "/qr/detection")
+        self.declare_parameter("camera_frame", "camera_link")
+        self.declare_parameter("marker_size_m", 0.10)
+        self.declare_parameter("fx", 900.0)
+        self.declare_parameter("fy", 900.0)
+        self.declare_parameter("cx", 640.0)
+        self.declare_parameter("cy", 360.0)
 
     def _read_parameters(self):
         return {
@@ -91,6 +104,7 @@ class QRNode(Node):
             "detected_topic": self.get_parameter("detected_topic").value,
             "text_topic": self.get_parameter("text_topic").value,
             "overlay_topic": self.get_parameter("overlay_topic").value,
+            "result_topic": self.get_parameter("result_topic").value,
         }
 
     def image_callback(self, msg):
@@ -122,6 +136,8 @@ class QRNode(Node):
         self.update_detection_state(detected)
 
         self.publish_text(data)
+
+        self.publish_result(msg, data, points)
 
         self.publish_overlay(data, points)
 
@@ -206,6 +222,30 @@ class QRNode(Node):
         self.get_logger().info(
             f"QR : {data}"
         )
+
+    def publish_result(self, image_msg, data, points):
+        """Publish a typed, approximate relative pose from the QR corners."""
+        msg = QrDetection()
+        msg.stamp = image_msg.header.stamp
+        msg.frame_id = str(self.get_parameter("camera_frame").value)
+        msg.payload = data
+        msg.detected = bool(data and points is not None)
+        if msg.detected:
+            corners = points.reshape(-1, 2)
+            center = corners.mean(axis=0)
+            widths = [np.linalg.norm(corners[(i + 1) % len(corners)] - corners[i])
+                      for i in range(len(corners))]
+            pixel_size = max(float(np.mean(widths)), 1.0)
+            fx = float(self.get_parameter("fx").value)
+            fy = float(self.get_parameter("fy").value)
+            marker_size = float(self.get_parameter("marker_size_m").value)
+            msg.z = marker_size * fx / pixel_size
+            msg.x = (float(center[0]) - float(self.get_parameter("cx").value)) * msg.z / fx
+            msg.y = (float(center[1]) - float(self.get_parameter("cy").value)) * msg.z / fy
+            edge = corners[1] - corners[0]
+            msg.yaw_deg = math.degrees(math.atan2(float(edge[1]), float(edge[0])))
+            msg.confidence = min(1.0, pixel_size / 100.0)
+        self.result_publisher.publish(msg)
 
     def publish_overlay(self, data, points):
 

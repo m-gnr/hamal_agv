@@ -1,0 +1,20 @@
+twist_mux:
+  ros__parameters:
+    topics:
+      navigation:
+        topic: /cmd_vel/nav
+        timeout: 0.5
+        priority: 10
+      docking:
+        topic: /cmd_vel/docking
+        timeout: 0.5
+        priority: 50
+      manual:
+        topic: /cmd_vel/manual
+        timeout: 0.5
+        priority: 100
+    locks:
+      safety:
+        topic: /safety/lock
+        timeout: 0.0
+        priority: 255

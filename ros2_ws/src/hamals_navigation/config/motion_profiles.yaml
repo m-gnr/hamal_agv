@@ -1,0 +1,5 @@
+motion_profiles:
+  empty: {max_linear_mps: 0.45, max_angular_rps: 0.8}
+  loaded: {max_linear_mps: 0.25, max_angular_rps: 0.4}
+  door: {max_linear_mps: 0.15, max_angular_rps: 0.25}
+  docking: {max_linear_mps: 0.10, max_angular_rps: 0.30}

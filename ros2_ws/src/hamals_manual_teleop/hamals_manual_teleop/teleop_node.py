@@ -13,7 +13,7 @@ class TeleopNode(Node):
 
         self.declare_parameter('publish_rate_hz', 20.0)
         
-        self.declare_parameter('cmd_vel_topic', '/cmd_vel')
+        self.declare_parameter('cmd_vel_topic', '/cmd_vel/manual')
     
         self.declare_parameter('linear_speed', 0.05)
         self.declare_parameter('linear_min', 0.0)

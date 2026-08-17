@@ -75,12 +75,17 @@ sources:
       - { msg_field: "data", state_key: "switch.mode", default: "auto" }
 
   # ── Mission / FSM ───────────────────────────────────────────────────────
-  # hamals_mission publishes "STAGE|message" while executing the real task.
-  - topic: /hamal/mission_status
-    type: std_msgs/String
+  - topic: /mission/state
+    type: hamals_interfaces/MissionState
     qos: reliable
     fields:
-      - { msg_field: "data", state_key: "_mission_status", default: "" }
+      - { msg_field: "state", state_key: "mission.state_id", default: 1 }
+      - { msg_field: "phase", state_key: "mission.fsm", default: "IDLE" }
+      - { msg_field: "task_id", state_key: "mission.id", default: "" }
+      - { msg_field: "pickup_id", state_key: "mission.pickup", default: "" }
+      - { msg_field: "dropoff_id", state_key: "mission.dropoff", default: "" }
+      - { msg_field: "message", state_key: "mission.step", default: "" }
+      - { msg_field: "elapsed_s", state_key: "mission.elapsed_s", default: 0.0 }
 
   # ── Navigation goal / feedback ──────────────────────────────────────────
   - topic: /nav/status
@@ -90,11 +95,16 @@ sources:
       - { msg_field: "data", state_key: "_nav_json", default: "" }
 
   # ── QR result ───────────────────────────────────────────────────────────
-  - topic: /qr/result
-    type: std_msgs/String
+  - topic: /qr/detection
+    type: hamals_interfaces/QrDetection
     qos: reliable
     fields:
-      - { msg_field: "data", state_key: "_qr_json", default: "" }
+      - { msg_field: "payload", state_key: "qr.id", default: "" }
+      - { msg_field: "detected", state_key: "qr.detected", default: false }
+      - { msg_field: "x", state_key: "qr.x", default: 0.0 }
+      - { msg_field: "y", state_key: "qr.y", default: 0.0 }
+      - { msg_field: "z", state_key: "qr.distance_m", default: 0.0 }
+      - { msg_field: "yaw_deg", state_key: "qr.angle_deg", default: 0.0 }
 
   # ── Line follower ────────────────────────────────────────────────────────
   - topic: /line/status
@@ -104,15 +114,29 @@ sources:
       - { msg_field: "data", state_key: "_line_json", default: "" }
 
   # ── PLC bridge ───────────────────────────────────────────────────────────
-  - topic: /plc/status
-    type: std_msgs/String
+  - topic: /plc/state
+    type: hamals_interfaces/PlcState
     qos: reliable
     fields:
-      - { msg_field: "data", state_key: "_plc_json", default: "" }
+      - { msg_field: "connection_state", state_key: "plc.connection_state", default: 0 }
+      - { msg_field: "active_task_id", state_key: "plc.active_task_id", default: "" }
+      - { msg_field: "last_rx", state_key: "plc.last_msg", default: "" }
 
   # ── Safety / obstacle ────────────────────────────────────────────────────
-  - topic: /safety/status
-    type: std_msgs/String
+  - topic: /safety/state
+    type: hamals_interfaces/SafetyState
     qos: best_effort
     fields:
-      - { msg_field: "data", state_key: "_safety_json", default: "" }
+      - { msg_field: "motion_allowed", state_key: "safety.motion_allowed", default: false }
+      - { msg_field: "estop_active", state_key: "safety.estop", default: false }
+      - { msg_field: "obstacle_active", state_key: "safety.obstacle", default: false }
+      - { msg_field: "obstacle_distance_m", state_key: "safety.obstacle_distance_m", default: -1.0 }
+      - { msg_field: "reason", state_key: "safety.reason", default: "" }
+
+  - topic: /world_model/state
+    type: hamals_interfaces/WorldModelState
+    qos: reliable
+    fields:
+      - { msg_field: "valid", state_key: "world_model.valid", default: false }
+      - { msg_field: "profile", state_key: "world_model.profile", default: "" }
+      - { msg_field: "config_checksum", state_key: "world_model.checksum", default: "" }

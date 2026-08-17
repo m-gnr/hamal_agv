@@ -17,7 +17,23 @@
   <exec_depend>hamals_robot_description</exec_depend>
   <exec_depend>hamals_navigation</exec_depend>
   <exec_depend>hamals_slam</exec_depend>
-  <exec_depend>hls_lfcd_lds_driver</exec_depend>
+  <exec_depend>hamals_camera</exec_depend>
+  <exec_depend>hamals_qr</exec_depend>
+  <exec_depend>hamals_line</exec_depend>
+  <exec_depend>hamals_lidar_toolbox</exec_depend>
+  <exec_depend>sllidar_ros2</exec_depend>
+  <exec_depend>laser_filters</exec_depend>
+  <exec_depend>hamals_fork</exec_depend>
+  <exec_depend>hamals_world_model</exec_depend>
+  <exec_depend>hamals_docking</exec_depend>
+  <exec_depend>hamals_plc_bridge</exec_depend>
+  <exec_depend>hamals_safety</exec_depend>
+  <exec_depend>hamals_mission</exec_depend>
+  <exec_depend>hamals_ui</exec_depend>
+  <exec_depend>hamals_manual_teleop</exec_depend>
+  <exec_depend>hamals_map_tools</exec_depend>
+  <exec_depend>twist_mux</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

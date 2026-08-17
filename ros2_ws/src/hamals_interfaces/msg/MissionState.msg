@@ -1,0 +1,25 @@
+uint8 BOOTING=0
+uint8 IDLE=1
+uint8 EXECUTING=2
+uint8 WAITING_PLC=3
+uint8 PAUSED_OBSTACLE=4
+uint8 PAUSED_MANUAL=5
+uint8 ERROR=6
+uint8 EMERGENCY_STOP=7
+
+builtin_interfaces/Time stamp
+uint8 state
+string phase
+string task_id
+string pickup_id
+string dropoff_id
+bool carrying_load
+string active_target
+string expected_qr
+string verified_qr
+string pause_reason
+string error_code
+string message
+uint32 retry_count
+float32 elapsed_s
+string config_checksum

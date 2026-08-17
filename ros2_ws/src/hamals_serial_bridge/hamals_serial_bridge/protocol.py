@@ -46,6 +46,7 @@ def decode_line(line: str):
       $IMU,t_us,gz,ax,ay,az*CS
       $ODOM,t_us,x,y,yaw,v,w*CS (legacy)
       $FORK_STATE,t_us,state,upper,lower,error*CS
+      $SAFETY,t_us,estop,manual*CS
     """
     if not line:
         return None
@@ -109,6 +110,13 @@ def decode_line(line: str):
                 "upper_limit": bool(int(parts[3])),
                 "lower_limit": bool(int(parts[4])),
                 "error_code": int(parts[5]),
+            }
+        elif parts[0] == "SAFETY" and len(parts) == 4:
+            return {
+                "type": "safety",
+                "t_us": int(parts[1]),
+                "estop": bool(int(parts[2])),
+                "manual": bool(int(parts[3])),
             }
         else:
             return None
