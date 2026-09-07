@@ -44,8 +44,8 @@ def generate_launch_description():
     with_vision = LaunchConfiguration('with_vision')
     return LaunchDescription([
         DeclareLaunchArgument('with_hardware', default_value='true'),
-        DeclareLaunchArgument('with_ui', default_value='true'),
-        DeclareLaunchArgument('with_vision', default_value='true'),
+        DeclareLaunchArgument('with_ui', default_value='false'),
+        DeclareLaunchArgument('with_vision', default_value='false'),
         DeclareLaunchArgument(
             'plc_config', default_value=os.path.join(plc, 'config', 'mock.yaml')
         ),
@@ -114,7 +114,7 @@ def generate_launch_description():
         ),
         Node(
             package='twist_mux',
-            executable='twist_mux',
+            executable='twist_mux', 
             name='twist_mux',
             output='screen',
             parameters=[os.path.join(bringup, 'config', 'twist_mux.yaml')],

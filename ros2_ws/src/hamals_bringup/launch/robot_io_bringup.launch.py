@@ -7,23 +7,74 @@ from ament_index_python.packages import get_package_share_directory
 
 import os
 
-
 def launch_setup(context, *args, **kwargs):
-    bringup_share = get_package_share_directory('hamals_bringup')
-    serial_bridge_share = get_package_share_directory('hamals_serial_bridge')
-    odometry_share = get_package_share_directory('hamals_odometry')
+
+    # ============================================================
+    # Package shares
+    # ============================================================
+
+    bringup_share = get_package_share_directory(
+        'hamals_bringup'
+    )
+
+    serial_bridge_share = get_package_share_directory(
+        'hamals_serial_bridge'
+    )
+
+    odometry_share = get_package_share_directory(
+        'hamals_odometry'
+    )
+
+    robot_description_share = get_package_share_directory(
+        'hamals_robot_description'
+    )
+
+    # ============================================================
+    # Robot Description / TF
+    # display.launch.py    robot_state_publisher
+    # ============================================================
+
+    display_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(
+                robot_description_share,
+                'launch',
+                'display.launch.py'
+            )
+        )
+    )
+
+    # ============================================================
+    # Serial Bridge
+    # ============================================================
 
     serial_bridge_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(serial_bridge_share, 'launch', 'serial_bridge.launch.py')
+            os.path.join(
+                serial_bridge_share,
+                'launch',
+                'serial_bridge.launch.py'
+            )
         )
     )
 
+    # ============================================================
+    # Odometry
+    # ============================================================
+
     odometry_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(odometry_share, 'launch', 'odometry.launch.py')
+            os.path.join(
+                odometry_share,
+                'launch',
+                'odometry.launch.py'
+            )
         )
     )
+
+    # ============================================================
+    # LiDAR
+    # ============================================================
 
     lidar_node = Node(
         package='sllidar_ros2',
@@ -42,11 +93,19 @@ def launch_setup(context, *args, **kwargs):
             }
         ],
         remappings=[
-            ('scan', 'scan_raw'),   # ham (filtresiz) veri burada yayinlanir
+            ('scan', 'scan_raw'),
         ]
     )
 
-    laser_filter_config = os.path.join(bringup_share, 'config', 'laser_filters.yaml')
+    # ============================================================
+    # LiDAR Filter
+    # ============================================================
+
+    laser_filter_config = os.path.join(
+        bringup_share,
+        'config',
+        'laser_filters.yaml'
+    )
 
     laser_filter_node = Node(
         package='laser_filters',
@@ -55,12 +114,17 @@ def launch_setup(context, *args, **kwargs):
         output='screen',
         parameters=[laser_filter_config],
         remappings=[
-            ('scan', 'scan_raw'),      # girdi: ham veri
-            ('scan_filtered', 'scan'),  # cikti: slam_toolbox'un bekledigi /scan
+            ('scan', 'scan_raw'),
+            ('scan_filtered', 'scan'),
         ]
     )
 
+    # ============================================================
+    # Launch everything
+    # ============================================================
+
     return [
+        display_launch,
         serial_bridge_launch,
         odometry_launch,
         lidar_node,
@@ -69,6 +133,7 @@ def launch_setup(context, *args, **kwargs):
 
 
 def generate_launch_description():
+
     return LaunchDescription([
         OpaqueFunction(function=launch_setup)
     ])

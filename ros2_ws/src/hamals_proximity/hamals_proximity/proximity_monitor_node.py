@@ -4,6 +4,8 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Bool
 
+from hamals_interfaces.msg import ForkCommand
+
 
 class ProximityMonitorNode(Node):
 
@@ -14,27 +16,9 @@ class ProximityMonitorNode(Node):
         # PARAMETRELER
         # --------------------------------------------------
 
-        # Hedef algılandı demek için gereken
-        # ardışık pozitif sensör okuması
         self.declare_parameter('required_hits', 3)
-
-        # Hedef artık algılanmıyor demek için gereken
-        # ardışık negatif sensör okuması
         self.declare_parameter('required_misses', 3)
-
-        # Bu süre boyunca yeni sensör verisi gelmezse
-        # proximity veri hattı kullanılamıyor kabul edilir.
         self.declare_parameter('sensor_timeout_sec', 0.5)
-
-        # Sensör çıkışı ters mantıkla çalışıyorsa True yapılır.
-        #
-        # False:
-        #   hedef yok  -> False
-        #   hedef var  -> True
-        #
-        # True:
-        #   hedef yok  -> True
-        #   hedef var  -> False
         self.declare_parameter('active_low', False)
 
         # --------------------------------------------------
@@ -64,24 +48,20 @@ class ProximityMonitorNode(Node):
         # DURUM DEĞİŞKENLERİ
         # --------------------------------------------------
 
-        # Filtrelenmiş hedef algılama sonucu
         self.filtered_state = False
 
-        # Ardışık True / False sayaçları
         self.hit_count = 0
         self.miss_count = 0
 
-        # En son ham proximity mesajının geldiği zaman
         self.last_message_time = None
-
-        # Önceki veri-hattı durumu
         self.previous_alive_state = None
-
-        # En az bir sensör mesajı alındı mı?
         self.received_first_message = False
 
+        # Docking proximity kontrolü başlangıçta kapalı.
+        self.enabled = False
+
         # --------------------------------------------------
-        # SUBSCRIBER
+        # SUBSCRIBERS
         # --------------------------------------------------
 
         # Serial bridge tarafından yayınlanan ham proximity bilgisi
@@ -92,18 +72,32 @@ class ProximityMonitorNode(Node):
             10
         )
 
+        # Docking node çizgi takibine geçince proximity aktif edilir.
+        self.create_subscription(
+            Bool,
+            '/proximity/enable',
+            self._enable_callback,
+            10
+        )
+
+        # Fork yukarı kalkmaya başladığında proximity devreden çıkar.
+        self.create_subscription(
+            ForkCommand,
+            '/fork/cmd',
+            self._fork_command_callback,
+            10
+        )
+
         # --------------------------------------------------
-        # PUBLISHER
+        # PUBLISHERS
         # --------------------------------------------------
 
-        # Filtrelenmiş hedef algılama sonucu
         self.detected_pub = self.create_publisher(
             Bool,
             '/proximity/detected',
             10
         )
 
-        # Proximity verisi düzenli olarak geliyor mu?
         self.alive_pub = self.create_publisher(
             Bool,
             '/proximity/alive',
@@ -114,7 +108,6 @@ class ProximityMonitorNode(Node):
         # TIMER
         # --------------------------------------------------
 
-        # 10 Hz bağlantı / timeout kontrolü
         self.timer = self.create_timer(
             0.1,
             self._timer_callback
@@ -125,20 +118,78 @@ class ProximityMonitorNode(Node):
         )
 
     # ------------------------------------------------------
+    # PROXIMITY AKTİF / PASİF
+    # ------------------------------------------------------
+
+    def _enable_callback(self, msg: Bool):
+
+        new_state = bool(msg.data)
+
+        if new_state == self.enabled:
+            return
+
+        self.enabled = new_state
+
+        self.filtered_state = False
+        self.hit_count = 0
+        self.miss_count = 0
+
+        if self.enabled:
+            self.get_logger().info(
+                'Proximity enabled'
+            )
+        else:
+            self.get_logger().info(
+                'Proximity disabled'
+            )
+
+        self._publish_detected()
+
+    # ------------------------------------------------------
+    # FORK KOMUTU
+    # ------------------------------------------------------
+
+    def _fork_command_callback(self, msg: ForkCommand):
+
+        # Fork yukarı kalkmaya başladığında proximity artık
+        # docking bitiş kararı vermemeli.
+        if int(msg.command) == int(ForkCommand.UP):
+
+            if self.enabled:
+                self.enabled = False
+
+                self.filtered_state = False
+                self.hit_count = 0
+                self.miss_count = 0
+
+                self.get_logger().info(
+                    'Proximity disabled: fork lifting started'
+                )
+
+                self._publish_detected()
+
+    # ------------------------------------------------------
     # HAM PROXIMITY VERİSİ
     # ------------------------------------------------------
 
     def _raw_callback(self, msg: Bool):
 
-        # Yeni veri geldiği zamanı kaydet
         self.last_message_time = time.monotonic()
-
-        # Artık en az bir gerçek mesaj aldığımızı biliyoruz
         self.received_first_message = True
+
+        # Proximity pasifken veri hattını takip ediyoruz fakat
+        # docking için detected=True üretilmesine izin vermiyoruz.
+        if not self.enabled:
+
+            self.filtered_state = False
+            self.hit_count = 0
+            self.miss_count = 0
+
+            self._publish_detected()
+            return
 
         raw_state = bool(msg.data)
 
-        # Sensör çıkışı active-low ise mantığı ters çevir
         if self.active_low:
             detected = not raw_state
         else:
@@ -153,8 +204,6 @@ class ProximityMonitorNode(Node):
             self.hit_count += 1
             self.miss_count = 0
 
-            # Yeterli sayıda ardışık pozitif okuma geldiyse
-            # hedefi doğrula.
             if (
                 not self.filtered_state
                 and self.hit_count >= self.required_hits
@@ -174,8 +223,6 @@ class ProximityMonitorNode(Node):
             self.miss_count += 1
             self.hit_count = 0
 
-            # Yeterli sayıda ardışık negatif okuma geldiyse
-            # hedef artık yok kabul edilir.
             if (
                 self.filtered_state
                 and self.miss_count >= self.required_misses
@@ -186,7 +233,6 @@ class ProximityMonitorNode(Node):
                     'Proximity target cleared'
                 )
 
-        # Güncel filtrelenmiş sonucu yayınla
         self._publish_detected()
 
     # ------------------------------------------------------
@@ -197,7 +243,6 @@ class ProximityMonitorNode(Node):
 
         now = time.monotonic()
 
-        # Daha önce hiç sensör verisi gelmediyse
         if self.last_message_time is None:
             alive = False
 
@@ -222,8 +267,6 @@ class ProximityMonitorNode(Node):
 
             elif self.received_first_message:
 
-                # Daha önce veri gelip daha sonra kesildiyse
-                # gerçek bir timeout durumu var.
                 self.get_logger().warning(
                     'Proximity data timeout'
                 )
@@ -236,10 +279,7 @@ class ProximityMonitorNode(Node):
 
         if not alive:
 
-            # Eski bir True bilgisinin bellekte kalmasını
-            # kesin olarak engelle.
             self.filtered_state = False
-
             self.hit_count = 0
             self.miss_count = 0
 
@@ -252,7 +292,6 @@ class ProximityMonitorNode(Node):
 
         self.alive_pub.publish(alive_msg)
 
-        # Detected durumunu da düzenli olarak yayınla.
         self._publish_detected()
 
     # ------------------------------------------------------

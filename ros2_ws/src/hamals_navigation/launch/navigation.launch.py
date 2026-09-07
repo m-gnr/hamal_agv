@@ -3,8 +3,7 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription
-from launch_ros.actions import SetRemap
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
@@ -25,7 +24,7 @@ def generate_launch_description():
         DeclareLaunchArgument('autostart', default_value='true'),
         DeclareLaunchArgument(
        'map',
-    default_value='/ros2_ws/src/hamals_slam/maps/map.yaml',
+    default_value='/ros2_ws/src/hamals_slam/maps/qr_test.yaml',
     description='Full path to map yaml file.'
 ),
     ]
@@ -54,10 +53,8 @@ def generate_launch_description():
         }.items(),
     )
 
+
+
     return LaunchDescription(
-        declare_args + [GroupAction([
-            SetRemap(src='/cmd_vel', dst='/cmd_vel/nav'),
-            nav2_localization,
-            nav2_navigation,
-        ])]
+        declare_args + [nav2_localization, nav2_navigation]
     )

@@ -114,8 +114,8 @@ wheels:
     radius: 0.100
     width: 0.050
 
-    # Sağ-sol teker merkezleri arası = 0.462 m
-    # Sol teker y = +0.462 / 2 = +0.231 m
+    # Sağ-sol teker merkezleri arası = 0.47 m
+    # Sol teker y = +0.47 / 2 = +0.235 m
     #
     # Sürüş teker merkezi arka uçtan = 0.425 m
     # Gövde merkezi arka uçtan = 0.263 m
@@ -125,7 +125,7 @@ wheels:
     # base_link z      = 0.2135 m
     # relative z       = 0.100 - 0.2135 = -0.1135 m
     origin:
-      xyz: [0.162, 0.231, -0.1135]
+      xyz: [0.162, 0.235, -0.1135]
       rpy: [1.5708, 0.0, 0.0]
 
     joint:
@@ -142,9 +142,9 @@ wheels:
     radius: 0.100
     width: 0.050
 
-    # Sağ teker y = -0.462 / 2 = -0.231 m
+    # Sağ teker y = -0.47 / 2 = -0.235 m
     origin:
-      xyz: [0.162, -0.231, -0.1135]
+      xyz: [0.162, -0.235, -0.1135]
       rpy: [1.5708, 0.0, 0.0]
 
     joint:
@@ -177,7 +177,7 @@ caster:
     # Destek teker merkezi arka kenardan 0.110 m önde:
     # x = -0.263 + 0.110 = -0.153 m
     origin:
-      xyz: [-0.153, 0.0, -0.1985]
+      xyz: [-0.203, 0.0, -0.1985]
       rpy: [0.0, 0.0, 0.0]
 
     joint:
@@ -327,8 +327,7 @@ lidar_mount:
   # x = +0.1625 m
   origin:
     xyz: [0.1625, 0.0, 0.1465]
-    rpy: [0.0, 0.0, 0.0]
-
+    rpy: [0.0, 0.0, 3.14159265359] 
   joint:
     name: "lidar_mount_joint"
     type: "fixed"

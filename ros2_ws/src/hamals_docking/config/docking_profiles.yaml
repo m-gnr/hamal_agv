@@ -1,10 +1,122 @@
 hamals_docking:
   ros__parameters:
+
+    # ============================================================
+    # DOCKING HIZI
+    # ============================================================
+
     speed_mps: 0.10
-    gain: 0.002
-    max_turn_rps: 0.30
-    pickup_distance_m: 1.50
-    dropoff_distance_m: 1.50
-    timeout_sec: 30.0
+
+
+    # ============================================================
+    # LINE FOLLOW
+    # ============================================================
+
+    line_gain: 0.0015
+    line_deadband_px: 18.0
+    line_smoothing: 0.35
+    line_max_turn: 0.20
+    line_invert: false
+
+    # Çizgi verisinin ne kadar süre eski sayılmayacağı
     line_lost_sec: 0.75
-    supported_profiles: [pickup_default, dropoff_default]
+
+
+    # ============================================================
+    # DOCKING TIMEOUT
+    # ============================================================
+
+    timeout_sec: 60.0
+
+
+    # ============================================================
+    # QR
+    # ============================================================
+
+    qr_wait_sec: 10.0
+
+
+    # ============================================================
+    # PICKUP - MZ80 / PROXIMITY
+    # ============================================================
+
+    # /proximity/alive mesajının maksimum kabul edilen yaşı
+    proximity_alive_timeout_sec: 0.5
+
+    # Yük alma sırasında çizgi takibi başladıktan sonra
+    # robot bu mesafe kadar ilerleyince MZ80 aktif hale gelir.
+    #
+    # 0.50 = 50 cm
+    # 1.00 = 100 cm
+    proximity_arm_distance_m: 0.50
+
+    # Mesafe hesabında kullanılacak encoder odometrisi
+    proximity_odom_topic: "/odom_raw"
+
+    # Odom verisi bu süreden uzun gelmezse docking durdurulur
+    proximity_odom_timeout_sec: 0.5
+
+    # MZ80 aktif olduktan sonra enable=True mesajının
+    # yeniden yayınlanma süresi
+    proximity_enable_refresh_sec: 0.2
+
+
+    # ============================================================
+    # DROPOFF - YÜK BIRAKMA MESAFESİ
+    # ============================================================
+
+    # Yük bırakma sırasında MZ80 kullanılmaz.
+    # Robot çizgiyi takip ederek encoder odometrisine göre
+    # bu mesafe kadar ilerler ve ardından docking tamamlanır.
+    #
+    # 1.50 = 150 cm
+    dropoff_line_distance_m: 1.50
+
+
+    # ============================================================
+    # QR SEARCH
+    # ============================================================
+
+    max_search_attempts: 3
+
+    search_timeout_sec: 12.0
+
+    search_angular_speed: 0.18
+
+    search_angles_deg:
+      - 60.0
+      - -120.0
+      - 120.0
+      - -120.0
+      - 120.0
+
+
+# ==================================================================
+# MZ80 PROXIMITY MONITOR
+# ==================================================================
+
+proximity_monitor:
+  ros__parameters:
+
+    # Hedef algılandı sayılması için gereken
+    # ardışık MZ80 pozitif okuma sayısı
+    required_hits: 3
+
+    # Hedef kayboldu sayılması için gereken
+    # ardışık negatif okuma sayısı
+    required_misses: 3
+
+    # /proximity/raw bu süre boyunca gelmezse
+    # sensör veri hattı sağlıksız kabul edilir
+    sensor_timeout_sec: 0.5
+
+    # MZ80 çıkış mantığı
+    #
+    # false:
+    #   hedef yok  -> False
+    #   hedef var  -> True
+    #
+    # true:
+    #   hedef yok  -> True
+    #   hedef var  -> False
+    active_low: false

@@ -18,7 +18,6 @@ def compute_checksum(payload: str) -> int:
 
 def encode_cmd(v: float, w: float) -> str:
     """Encode cmd_vel to framed protocol."""
-    # Format: $CMD,v,w*CS\n
     payload = f"CMD,{v:.3f},{w:.3f}"
     cs = compute_checksum(payload)
     return f"${payload}*{cs:02X}\n"
@@ -26,7 +25,6 @@ def encode_cmd(v: float, w: float) -> str:
 
 def encode_fork_cmd(cmd: str) -> str:
     """Encode fork command to framed protocol."""
-    # Format: $FORK,UP*CS\n, $FORK,DOWN*CS\n, or $FORK,STOP*CS\n
     cmd = cmd.strip().upper()
     payload = f"FORK,{cmd}"
     cs = compute_checksum(payload)
@@ -44,38 +42,55 @@ def decode_line(line: str):
     Expected:
       $ENC,t_us,dl,dr*CS
       $IMU,t_us,gz,ax,ay,az*CS
-      $ODOM,t_us,x,y,yaw,v,w*CS (legacy)
+      $ODOM,t_us,x,y,yaw,v,w*CS
       $FORK_STATE,t_us,state,upper,lower,error*CS
       $SAFETY,t_us,estop,manual*CS
+      $OBSTACLE,t_us,detected*CS
     """
+
     if not line:
         return None
 
     line = line.strip()
 
-    # Must start with $
+    # --------------------------------------------------
+    # Frame start
+    # --------------------------------------------------
+
     if not line.startswith("$"):
         return None
 
-    # Split checksum
+    # --------------------------------------------------
+    # Checksum
+    # --------------------------------------------------
+
     try:
-        body, cs_part = line[1:].split("*")
+        body, cs_part = line[1:].split("*", 1)
     except ValueError:
         return None
 
-    # Validate checksum
     try:
         received_cs = int(cs_part, 16)
     except ValueError:
         return None
 
     calc_cs = compute_checksum(body)
+
     if calc_cs != received_cs:
         return None
 
-    # Parse payload
+    # --------------------------------------------------
+    # Payload
+    # --------------------------------------------------
+
     parts = body.split(",")
+
     try:
+
+        # ==================================================
+        # ENCODER
+        # ==================================================
+
         if parts[0] == "ENC" and len(parts) == 4:
             return {
                 "type": "enc",
@@ -83,6 +98,11 @@ def decode_line(line: str):
                 "dl": int(parts[2]),
                 "dr": int(parts[3]),
             }
+
+        # ==================================================
+        # IMU
+        # ==================================================
+
         elif parts[0] == "IMU" and len(parts) == 6:
             return {
                 "type": "imu",
@@ -92,6 +112,11 @@ def decode_line(line: str):
                 "ay": float(parts[4]),
                 "az": float(parts[5]),
             }
+
+        # ==================================================
+        # ODOM
+        # ==================================================
+
         elif parts[0] == "ODOM" and len(parts) == 7:
             return {
                 "type": "odom",
@@ -102,6 +127,11 @@ def decode_line(line: str):
                 "v": float(parts[5]),
                 "w": float(parts[6]),
             }
+
+        # ==================================================
+        # FORK STATE
+        # ==================================================
+
         elif parts[0] == "FORK_STATE" and len(parts) == 6:
             return {
                 "type": "fork_state",
@@ -111,6 +141,11 @@ def decode_line(line: str):
                 "lower_limit": bool(int(parts[4])),
                 "error_code": int(parts[5]),
             }
+
+        # ==================================================
+        # SAFETY
+        # ==================================================
+
         elif parts[0] == "SAFETY" and len(parts) == 4:
             return {
                 "type": "safety",
@@ -118,7 +153,24 @@ def decode_line(line: str):
                 "estop": bool(int(parts[2])),
                 "manual": bool(int(parts[3])),
             }
+
+        # ==================================================
+        # E18-D80NK OBSTACLE SENSOR
+        # ==================================================
+
+        elif parts[0] == "OBSTACLE" and len(parts) == 3:
+            return {
+                "type": "obstacle",
+                "t_us": int(parts[1]),
+                "detected": bool(int(parts[2])),
+            }
+
+        # ==================================================
+        # UNKNOWN
+        # ==================================================
+
         else:
             return None
-    except ValueError:
+
+    except (ValueError, TypeError):
         return None

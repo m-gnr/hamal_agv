@@ -12,7 +12,7 @@ from std_srvs.srv import Trigger
 
 
 DEFAULT_MAP_DIRECTORY = (
-    "/home/hamal/hamal_eski_pi/hamal_agv/"
+    "/home/hamal/Desktop/hamal_agv/"
     "ros2_ws/src/hamals_slam/maps"
 )
 

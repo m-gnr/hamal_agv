@@ -1,4 +1,3 @@
-
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -10,8 +9,6 @@ import os
 
 def generate_launch_description():
     bringup_share = get_package_share_directory('hamals_bringup')
-    state_estimation_share = get_package_share_directory('hamals_state_estimation')
-
     navigation_share = get_package_share_directory('hamals_navigation')
 
     robot_io_launch = IncludeLaunchDescription(
@@ -20,11 +17,6 @@ def generate_launch_description():
         )
     )
 
-    ekf_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(state_estimation_share, 'launch', 'ekf.launch.py')
-        )
-    )
     navigation_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(navigation_share, 'launch', 'navigation.launch.py')
@@ -33,6 +25,5 @@ def generate_launch_description():
 
     return LaunchDescription([
         robot_io_launch,
-        ekf_launch,
         navigation_launch,
     ])
