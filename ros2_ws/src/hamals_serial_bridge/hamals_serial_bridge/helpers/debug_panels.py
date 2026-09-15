@@ -13,7 +13,9 @@ Serial:
   timeout_ms        : {cfg.timeout_ms}
 
 Topics:
-  cmd_vel           : {cfg.cmd_vel_topic}
+  cmd_vel auto      : {cfg.cmd_vel_topic}
+  cmd_vel manual    : {cfg.manual_cmd_vel_topic}
+  mode              : {cfg.mode_topic}
   wheel_ticks       : {cfg.wheel_ticks_topic}
   imu               : {cfg.imu_topic}
   mcu_fork_cmd      : {cfg.mcu_fork_cmd_topic}

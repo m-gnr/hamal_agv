@@ -20,14 +20,6 @@ twist_mux:
 
         priority: 50
 
-      manual:
-
-        topic: /cmd_vel/manual
-
-        timeout: 0.5
-
-        priority: 100
-
     locks:
 
       safety:

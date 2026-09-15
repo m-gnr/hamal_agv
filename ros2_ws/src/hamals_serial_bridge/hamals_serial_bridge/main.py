@@ -41,6 +41,7 @@ class SerialBridgeNode(Node):
         self._last_cmd_time = time.time()
         self._last_cmd_send_time = 0.0
         self._deadman_active = False
+        self._mode = None
         self._running = True
 
         self._cmd_send_min_interval = (
@@ -96,7 +97,25 @@ class SerialBridgeNode(Node):
         self.cmd_sub = self.create_subscription(
             Twist,
             self.cfg.cmd_vel_topic,
-            self.cmd_vel_callback,
+            self.auto_cmd_vel_callback,
+            10
+        )
+
+        self.manual_cmd_sub = self.create_subscription(
+            Twist,
+            self.cfg.manual_cmd_vel_topic,
+            self.manual_cmd_vel_callback,
+            10
+        )
+
+        # Check resolved names too, so remaps cannot merge the inputs.
+        if self.cmd_sub.topic_name == self.manual_cmd_sub.topic_name:
+            raise ValueError('Manual and auto cmd_vel topics must be distinct')
+
+        self.mode_sub = self.create_subscription(
+            String,
+            self.cfg.mode_topic,
+            self.mode_callback,
             10
         )
 
@@ -468,15 +487,42 @@ class SerialBridgeNode(Node):
     # ROS → MCU
     # =====================================================
 
+    def mode_callback(self, msg: String):
+        # Only the existing String topic determines routing. No normalization:
+        # unknown values (including whitespace/case variants) fail closed.
+        mode = msg.data if msg.data in ('manual', 'auto') else None
+        if mode == self._mode:
+            return
+
+        previous_mode = self._mode
+        self._mode = mode
+        if previous_mode is not None:
+            self._maybe_send_cmd(0.0, 0.0, force=True)
+            self._dbg_last_cmd = (0.0, 0.0)
+            # No previous-source command or timeout should survive this stop.
+            self._last_cmd_time = 0.0
+            self._deadman_active = True
+
+    def manual_cmd_vel_callback(self, msg: Twist):
+        self.cmd_vel_callback(msg, 'manual')
+
+    def auto_cmd_vel_callback(self, msg: Twist):
+        self.cmd_vel_callback(msg, 'auto')
+
     def cmd_vel_callback(
         self,
-        msg: Twist
+        msg: Twist,
+        source: str
     ):
+
+        if self._mode is None or source != self._mode:
+            return
 
         v = msg.linear.x
         w = msg.angular.z
 
         self._last_cmd_time = time.time()
+        self._deadman_active = False
 
         self._dbg_last_cmd = (
             v,

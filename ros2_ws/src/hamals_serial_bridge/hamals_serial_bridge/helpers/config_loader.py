@@ -21,6 +21,7 @@ class SerialBridgeConfig:
     # Topics
     # ==================================================
 
+    manual_cmd_vel_topic: str
     cmd_vel_topic: str
     wheel_ticks_topic: str
     imu_topic: str
@@ -100,8 +101,13 @@ def declare_parameters(node: Node) -> None:
     # --------------------------------------------------
 
     node.declare_parameter(
+        'manual_cmd_vel_topic',
+        '/cmd_vel/manual_teleop'
+    )
+
+    node.declare_parameter(
         'cmd_vel_topic',
-        '/cmd_vel'
+        '/cmd_vel/selected'
     )
 
     node.declare_parameter(
@@ -256,6 +262,10 @@ def load_config(node: Node) -> SerialBridgeConfig:
         # ------------------------------------------------
         # Topics
         # ------------------------------------------------
+
+        manual_cmd_vel_topic=str(
+            node.get_parameter('manual_cmd_vel_topic').value
+        ),
 
         cmd_vel_topic=str(
             node.get_parameter(

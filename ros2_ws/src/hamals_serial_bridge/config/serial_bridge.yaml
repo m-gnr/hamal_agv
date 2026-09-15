@@ -6,7 +6,8 @@
 
     imu_frame_id: imu_link
 
-    cmd_vel_topic: /cmd_vel/selected  #/cmd_vel/selected    
+    cmd_vel_topic: /cmd_vel/selected  # Autonomous-only twist_mux output
+    manual_cmd_vel_topic: /cmd_vel/manual_teleop
 
     wheel_ticks_topic: /wheel_ticks
     imu_topic: /imu/data

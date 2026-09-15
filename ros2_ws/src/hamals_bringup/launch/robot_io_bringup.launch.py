@@ -117,10 +117,10 @@ def launch_setup(context, *args, **kwargs):
     # Inputs:
     #   /cmd_vel          -> Navigation
     #   /cmd_vel/docking  -> Docking
-    #   /cmd_vel/manual   -> Manual teleop
     #
     # Output:
-    #   /cmd_vel/selected -> Serial Bridge
+    #   /cmd_vel/selected -> Serial Bridge AUTO input
+    # Manual teleop goes directly to the bridge on /cmd_vel/manual_teleop.
     # ============================================================
 
     twist_mux_config = os.path.join(
