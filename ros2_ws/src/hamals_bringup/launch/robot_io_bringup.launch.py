@@ -7,6 +7,7 @@ from ament_index_python.packages import get_package_share_directory
 
 import os
 
+
 def launch_setup(context, *args, **kwargs):
 
     # ============================================================
@@ -25,24 +26,13 @@ def launch_setup(context, *args, **kwargs):
         'hamals_odometry'
     )
 
-    robot_description_share = get_package_share_directory(
-        'hamals_robot_description'
-    )
-
     # ============================================================
     # Robot Description / TF
-    # display.launch.py    robot_state_publisher
+    # TF publishing is handled once by the top-level competition launch.
     # ============================================================
 
-    display_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(
-                robot_description_share,
-                'launch',
-                'display.launch.py'
-            )
-        )
-    )
+    # display_launch intentionally removed to avoid duplicate
+    # robot_state_publisher instances.
 
     # ============================================================
     # Serial Bridge
@@ -112,10 +102,43 @@ def launch_setup(context, *args, **kwargs):
         executable='scan_to_scan_filter_chain',
         name='scan_to_scan_filter_chain',
         output='screen',
-        parameters=[laser_filter_config],
+        parameters=[
+            laser_filter_config
+        ],
         remappings=[
             ('scan', 'scan_raw'),
             ('scan_filtered', 'scan'),
+        ]
+    )
+
+    # ============================================================
+    # Twist Mux
+    #
+    # Inputs:
+    #   /cmd_vel          -> Navigation
+    #   /cmd_vel/docking  -> Docking
+    #   /cmd_vel/manual   -> Manual teleop
+    #
+    # Output:
+    #   /cmd_vel/selected -> Serial Bridge
+    # ============================================================
+
+    twist_mux_config = os.path.join(
+        bringup_share,
+        'config',
+        'twist_mux.yaml'
+    )
+
+    twist_mux_node = Node(
+        package='twist_mux',
+        executable='twist_mux',
+        name='twist_mux',
+        output='screen',
+        parameters=[
+            twist_mux_config
+        ],
+        remappings=[
+            ('cmd_vel_out', '/cmd_vel/selected'),
         ]
     )
 
@@ -124,11 +147,11 @@ def launch_setup(context, *args, **kwargs):
     # ============================================================
 
     return [
-        display_launch,
         serial_bridge_launch,
         odometry_launch,
         lidar_node,
         laser_filter_node,
+        twist_mux_node,
     ]
 
 

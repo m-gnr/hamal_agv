@@ -118,6 +118,6 @@ constexpr float WHEEL_TRIM_R = 0.941f;
 //                SERIAL TELEMETRY
 // ======================================================
 
-constexpr float ENC_TX_DT_S = 0.02f;      // 50 Hz
-constexpr float IMU_TX_DT_S = 0.02f;      // 50 Hz
+constexpr float ENC_TX_DT_S = 0.02f;   // 50 Hz
+constexpr float IMU_TX_DT_S = 0.02f;   // 50 Hz   
 constexpr float ODOM_TX_DT_S = ENC_TX_DT_S;

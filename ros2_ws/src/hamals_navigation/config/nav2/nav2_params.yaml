@@ -8,7 +8,7 @@
 map_server:
   ros__parameters:
     use_sim_time: false
-    yaml_filename: "/home/hamal/Desktop/hamal_agv/ros2_ws/src/hamals_slam/maps/map.yaml"
+    yaml_filename: "/home/hamal/FINAL/hamal_agv/ros2_ws/src/hamals_slam/maps/pazar_map.yaml"
 
 # ------------------------------------------------------------
 # AMCL
@@ -93,7 +93,7 @@ planner_server:
 
       reverse_penalty: 0.0
 
-      change_penalty: 2.0
+      change_penalty: 0.0
 
       non_straight_penalty: 1.20
 
@@ -132,18 +132,10 @@ controller_server:
     FollowPath:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
 
-      # ------------------------------------------------------
-      # السرعة الأساسية
-      # ------------------------------------------------------
+      desired_linear_vel: 0.25
 
-      desired_linear_vel: 0.15
-
-      # ------------------------------------------------------
-      # تسارع / تباطؤ ناعم
-      # ------------------------------------------------------
-
-      max_linear_accel: 0.15
-      max_linear_decel: 0.20
+      max_linear_accel: 0.10
+      max_linear_decel: 0.15
 
       # ------------------------------------------------------
       # Rotation
@@ -153,9 +145,9 @@ controller_server:
 
       allow_reversing: true
 
-      rotate_to_heading_angular_vel: 0.25
+      rotate_to_heading_angular_vel: 0.30
 
-      max_angular_accel: 0.30
+      max_angular_accel: 0.20
 
       # ------------------------------------------------------
       # Goal
@@ -167,11 +159,11 @@ controller_server:
       # Lookahead
       # ------------------------------------------------------
 
-      lookahead_dist: 0.60
+      lookahead_dist: 0.45
 
-      min_lookahead_dist: 0.40
+      min_lookahead_dist: 0.30
 
-      max_lookahead_dist: 0.80
+      max_lookahead_dist: 0.60
 
       use_velocity_scaled_lookahead_dist: true
 
@@ -187,13 +179,13 @@ controller_server:
     general_goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
 
-      xy_goal_tolerance: 0.10
+      xy_goal_tolerance: 0.10  # 10 cm
 
-      yaw_goal_tolerance: 0.10
+      yaw_goal_tolerance: 0.10  # 5.7 deg
 
       stateful: true
 
-    # --------------------------------------------------------
+    # ----------------------------------------a----------------
     # Progress checker
     # --------------------------------------------------------
     progress_checker:
@@ -269,21 +261,16 @@ velocity_smoother:
     # Maximum velocities
     # --------------------------------------------------------
 
-    max_velocity: [0.20, 0.0, 0.35]
+    max_velocity: [0.30, 0.0, 0.45]
 
-    min_velocity: [-0.20, 0.0, -0.35]
+    max_accel:  [0.35, 0.0, 0.80]
+    max_decel:  [-0.35, 0.0, -0.80]
+
+    min_velocity: [-0.10, 0.0, -0.25]
 
     # --------------------------------------------------------
     # Acceleration
     # --------------------------------------------------------
-
-    max_accel: [0.15, 0.0, 0.30]
-
-    # --------------------------------------------------------
-    # Deceleration
-    # --------------------------------------------------------
-
-    max_decel: [-0.20, 0.0, -0.30]
 
     # --------------------------------------------------------
     # Odom
@@ -335,7 +322,7 @@ global_costmap:
 
       publish_frequency: 2.0
 
-      resolution: 0.05
+      resolution: 0.15
 
       track_unknown_space: true
 
@@ -344,7 +331,7 @@ global_costmap:
       # Width approximately 0.53 m
       footprint: "[[0.70, 0.265], [0.70, -0.265], [-0.44, -0.265], [-0.44, 0.265]]"
 
-      footprint_padding: 0.05
+      footprint_padding: 0.15
 
       plugins:
         - "static_layer"
@@ -390,9 +377,9 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
 
-        inflation_radius: 0.20
+        inflation_radius: 0.30
 
-        cost_scaling_factor: 5.0
+        cost_scaling_factor: 3.0
 
 # ------------------------------------------------------------
 # Local Costmap
@@ -412,7 +399,7 @@ local_costmap:
 
       height: 5
 
-      resolution: 0.05
+      resolution: 0.15
 
       update_frequency: 10.0
 
@@ -458,7 +445,7 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
 
-        inflation_radius: 0.1
+        inflation_radius: 0.15
 
         cost_scaling_factor: 3.0
 

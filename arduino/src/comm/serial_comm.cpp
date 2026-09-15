@@ -184,3 +184,23 @@ void SerialComm::sendImu(uint32_t t_us, float gz, float ax, float ay, float az) 
 
     hamals::frame_codec::writeFrame(payload);
 }
+
+void SerialComm::sendObstacle(uint32_t t_us, bool detected) {
+    char payload[48];
+    const int p_len = snprintf(payload, sizeof(payload),
+                               "OBSTACLE,%lu,%d",
+                               (unsigned long)t_us, detected ? 1 : 0);
+    if (p_len <= 0 || p_len >= (int)sizeof(payload)) return;
+    hamals::frame_codec::writeFrame(payload);
+}
+
+void SerialComm::sendSafety(uint32_t t_us, bool estop, bool manual) {
+    char payload[48];
+    const int p_len = snprintf(payload, sizeof(payload),
+                               "SAFETY,%lu,%d,%d",
+                               (unsigned long)t_us,
+                               estop ? 1 : 0,
+                               manual ? 1 : 0);
+    if (p_len <= 0 || p_len >= (int)sizeof(payload)) return;
+    hamals::frame_codec::writeFrame(payload);
+}

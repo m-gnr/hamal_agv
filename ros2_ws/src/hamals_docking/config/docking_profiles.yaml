@@ -4,119 +4,52 @@ hamals_docking:
     # ============================================================
     # DOCKING HIZI
     # ============================================================
-
     speed_mps: 0.10
-
 
     # ============================================================
     # LINE FOLLOW
     # ============================================================
-
     line_gain: 0.0015
     line_deadband_px: 18.0
     line_smoothing: 0.35
     line_max_turn: 0.20
     line_invert: false
-
-    # Çizgi verisinin ne kadar süre eski sayılmayacağı
     line_lost_sec: 0.75
-
 
     # ============================================================
     # DOCKING TIMEOUT
     # ============================================================
-
     timeout_sec: 60.0
 
+    # ============================================================
+    # ENCODER / ODOM MESAFE HESABI
+    # ============================================================
+    odom_topic: "/odom"
+    odom_timeout_sec: 0.5
 
     # ============================================================
-    # QR
+    # PICKUP - MZ80
     # ============================================================
-
-    qr_wait_sec: 10.0
-
-
-    # ============================================================
-    # PICKUP - MZ80 / PROXIMITY
-    # ============================================================
-
-    # /proximity/alive mesajının maksimum kabul edilen yaşı
-    proximity_alive_timeout_sec: 0.5
+    mz80_topic: "/proximity/raw"
 
     # Yük alma sırasında çizgi takibi başladıktan sonra
-    # robot bu mesafe kadar ilerleyince MZ80 aktif hale gelir.
-    #
-    # 0.50 = 50 cm
-    # 1.00 = 100 cm
-    proximity_arm_distance_m: 0.50
+    # bu mesafede MZ80 docking kararı için aktif hale gelir.
+    pickup_mz80_arm_distance_m: 0.50
 
-    # Mesafe hesabında kullanılacak encoder odometrisi
-    proximity_odom_topic: "/odom_raw"
+    # Hedef algılandı sayılması için gereken ardışık pozitif okuma.
+    mz80_required_hits: 3
 
-    # Odom verisi bu süreden uzun gelmezse docking durdurulur
-    proximity_odom_timeout_sec: 0.5
+    # MZ80 raw verisi bu süreden uzun gelmezse stale kabul edilir.
+    mz80_timeout_sec: 0.5
 
-    # MZ80 aktif olduktan sonra enable=True mesajının
-    # yeniden yayınlanma süresi
-    proximity_enable_refresh_sec: 0.2
-
+    # false: hedef yok=False, hedef var=True
+    # true : hedef yok=True,  hedef var=False
+    mz80_active_low: false
 
     # ============================================================
-    # DROPOFF - YÜK BIRAKMA MESAFESİ
+    # DROPOFF
     # ============================================================
-
-    # Yük bırakma sırasında MZ80 kullanılmaz.
-    # Robot çizgiyi takip ederek encoder odometrisine göre
-    # bu mesafe kadar ilerler ve ardından docking tamamlanır.
-    #
-    # 1.50 = 150 cm
-    dropoff_line_distance_m: 1.50
-
-
-    # ============================================================
-    # QR SEARCH
-    # ============================================================
-
-    max_search_attempts: 3
-
-    search_timeout_sec: 12.0
-
-    search_angular_speed: 0.18
-
-    search_angles_deg:
-      - 60.0
-      - -120.0
-      - 120.0
-      - -120.0
-      - 120.0
-
-
-# ==================================================================
-# MZ80 PROXIMITY MONITOR
-# ==================================================================
-
-proximity_monitor:
-  ros__parameters:
-
-    # Hedef algılandı sayılması için gereken
-    # ardışık MZ80 pozitif okuma sayısı
-    required_hits: 3
-
-    # Hedef kayboldu sayılması için gereken
-    # ardışık negatif okuma sayısı
-    required_misses: 3
-
-    # /proximity/raw bu süre boyunca gelmezse
-    # sensör veri hattı sağlıksız kabul edilir
-    sensor_timeout_sec: 0.5
-
-    # MZ80 çıkış mantığı
-    #
-    # false:
-    #   hedef yok  -> False
-    #   hedef var  -> True
-    #
-    # true:
-    #   hedef yok  -> True
-    #   hedef var  -> False
-    active_low: false
+    # Yük bırakmada MZ80 kullanılmaz.
+    # Çizgi takibi başladıktan sonra encoder odometrisine göre
+    # bu mesafe tamamlanınca docking başarılı sayılır.
+    dropoff_line_distance_m: 1.20 #

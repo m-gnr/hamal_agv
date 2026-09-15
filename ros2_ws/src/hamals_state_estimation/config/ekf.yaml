@@ -2,14 +2,15 @@ ekf_filter_node:
   ros__parameters:
     use_sim_time: false
 
-    # EKF update rate eski degerler
-    #frequency: 50.0
-    #sensor_timeout: 0.1
+    # EKF update rate tuned for stable fusion with MCU telemetry.
+    # 10 Hz is a safer target for odom + IMU packets than 20 Hz when
+    # the serial bridge and MCU packets are not perfectly synchronized.
+    frequency: 30.0
+    sensor_timeout: 0.5
 
 
-    # yous degileri
-    frequency: 20.0
-    sensor_timeout: 0.1
+  
+   
 
     # 2D mobile base
     two_d_mode: true
@@ -55,3 +56,5 @@ ekf_filter_node:
                   false, false, false,
                   false, false, true,
                   false, false, false]
+
+   

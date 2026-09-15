@@ -2,7 +2,7 @@
 #pragma once
 
 // -------------------- Encoder Pins ---------------------
-// Left wheel encoder  yous degisti b=sari=>13
+// Left wheel encoder   degisti b=sari=>13
 #define ENC_L_A   D14  // GPIO10 - interrupt capable - Channel A
 #define ENC_L_B   D13  // GPIO1 - interrupt capable - Channel B
 
@@ -17,7 +17,9 @@
 // RIGHT motor is on the remaining A0/A1 pair (keep order for now)
 #define MOTOR_R_IN1  A0
 #define MOTOR_R_IN2  A1
-
+// -------------------- Mesafe (E18-D80NK) ----------------
+// LOW = engel. D0 = GPIO0 (BOOT pini - dikkat!)
+#define OBSTACLE_PIN  D0
 // -------------------- IMU (BNO085 - SPI) ----------------
 #define IMU_CS    D4    // GPIO42 - Chip Select
 #define IMU_INT   D1    // GPIO2  - Data Ready Interrupt
@@ -30,16 +32,18 @@
 // -------------------- Fork / Lift Motor -----------------
 // BTS7960 fork motor driver
 // Note: D0/D1/D12/D13 are already used by encoders/IMU, so fork uses free pins.
-#define FORK_RPWM       A5    // GPIO16 - PWM1 -> BTS7960 RPWM
-#define FORK_LPWM       A4    // GPIO15 - PWM0 -> BTS7960 LPWM
+#define FORK_RPWM       A4   // GPIO16 - PWM1 -> BTS7960 RPWM
+#define FORK_LPWM       A5   // GPIO15 - PWM0 -> BTS7960 LPWM
 
 // NC limit switches with INPUT_PULLUP:
 // not pressed -> LOW, pressed or broken wire -> HIGH
 #define FORK_LIMIT_TOP  A6    // GPIO17 - upper NC limit switch
 #define FORK_LIMIT_BOT  A7    // GPIO18 - lower NC limit switch
 
-// Manuel/Otonom switch INPUT_PULLUP:
-// #define MANUEL D11
-// #define OTONOM D12
+// Manuel/Otonom switch (2 pin - SPDT/ON-OFF-ON, INPUT_PULLUP)
+//   ortak uc GND'ye. Secili pozisyon LOW olur.
+//   MANUEL -> D2=LOW ; OTONOM -> D3=LOW ; ikisi HIGH (orta/kopuk) -> manuel (guvenli)
+#define MODE_PIN_MANUEL  D2
+#define MODE_PIN_OTONOM  D3
 // -------------------- Serial ---------------------------
 #define SERIAL_BAUDRATE 230400

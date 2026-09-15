@@ -6,7 +6,7 @@
 
     imu_frame_id: imu_link
 
-    cmd_vel_topic: /cmd_vel
+    cmd_vel_topic: /cmd_vel/selected  #/cmd_vel/selected    
 
     wheel_ticks_topic: /wheel_ticks
     imu_topic: /imu/data
@@ -14,6 +14,9 @@
     mcu_fork_state_topic: /mcu/fork_state
     estop_topic: /estop
     mode_topic: /switch/mode
+
+    # MZ80 -> sade docking doğrudan bu topic'i dinler
+    obstacle_topic: /proximity/raw
 
     # IMU publish options
     publish_linear_accel: true

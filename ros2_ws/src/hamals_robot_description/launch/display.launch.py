@@ -31,14 +31,14 @@ def generate_launch_description():
         parameters=[
             {
                 "robot_description": robot_description,
-                "publish_frequency": 50.0
+                "publish_frequency": 60.0
             }
         ],
         output="screen"
     )
 
     # Joint State Publisher
-    # بدون GUI
+   
     joint_state_publisher = Node(
         package="joint_state_publisher",
         executable="joint_state_publisher",

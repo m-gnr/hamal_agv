@@ -19,6 +19,7 @@
 #include "src/comm/serial_comm.h"
 #include "src/comm/fork_protocol.h"
 #include "src/timing/timing.h"
+#include "src/obstacle/obstacle.h"
 
 // ======================================================
 // OBJECTS
@@ -28,6 +29,8 @@ SerialComm serial;
 
 Encoder leftEncoder(ENC_L_A, ENC_L_B, ENC_L_DIRECTION);
 Encoder rightEncoder(ENC_R_A, ENC_R_B, ENC_R_DIRECTION);
+
+Obstacle obstacle(OBSTACLE_PIN);                 //  E18-D80NK mesafe
 
 IMU imu(IMU_CS, IMU_INT, IMU_RST);
 
@@ -49,6 +52,8 @@ Motor motorR(MOTOR_R_IN1, MOTOR_R_IN2, PWM_MAX);
 Timing controlTimer(CONTROL_DT_S);
 Timing encTxTimer(ENC_TX_DT_S);
 Timing imuTxTimer(IMU_TX_DT_S);
+Timing obsTxTimer(0.05f);                         // mesafe 20 Hz
+Timing safetyTxTimer(0.1f);                       // : mod switch 10 Hz
 
 // ======================================================
 // IMU TASK (Core 0)
@@ -130,6 +135,13 @@ void setup() {
     delayMicroseconds(10000);
     imuTxTimer.reset();
 
+    obstacle.begin();
+    obsTxTimer.reset();
+
+    pinMode(MODE_PIN_MANUEL, INPUT_PULLUP);       // : mod switch (manuel)
+    pinMode(MODE_PIN_OTONOM, INPUT_PULLUP);       // : mod switch (otonom)
+    safetyTxTimer.reset();                        // : 
+
     Serial.println("Ready");
 }
 
@@ -142,28 +154,23 @@ void loop() {
     hamals::fork_controller::update();
     hamals::fork_protocol::publishForkStateIfDue();
 
-    // Enkoder farkları her turda okunur. Kontrol döngüsü ile telemetri
-    // farklı periyotlarda çalıştığından, telemetri için ayrıca biriktirilir.
+    obstacle.update();
+
     static int32_t last_dL_ctrl = 0;
     static int32_t last_dR_ctrl = 0;
 
-    // ENC_TX_DT_S aralığında gönderilecek toplam tik sayıları.
     static int32_t enc_accum_L = 0;
     static int32_t enc_accum_R = 0;
 
     const int32_t dL_step = leftEncoder.readDelta();
     const int32_t dR_step = rightEncoder.readDelta();
 
-    // PID hesabı yalnızca bu turdaki enkoder farkını kullanır.
     last_dL_ctrl = dL_step;
     last_dR_ctrl = dR_step;
 
-    // ROS tarafına son yayından beri biriken tikler gönderilir.
     enc_accum_L += dL_step;
     enc_accum_R += dR_step;
 
-    // Seri telemetri kontrol çevriminden bağımsız gönderilir. Aynı turda iki
-    // mesaj çıkarsa ikisi de aynı mikro-saniye zaman damgasını paylaşır.
     bool sent_any = false;
     uint32_t t_us = 0;
 
@@ -179,7 +186,26 @@ void loop() {
         serial.sendImu(t_us, imu.getGz(), imu.getAx(), imu.getAy(), imu.getAz());
     }
 
-    // Hız kontrolü CONTROL_DT_S periyodunda çalışır.
+    // : mesafe sensoru durumu.
+    //   (A) simdilik SADECE Serial'e (test). ROS'a gondermek icin
+    //       serial_comm'a sendObstacle ekleyip alttaki satiri ac.
+    if (obsTxTimer.tick()) {
+        // serial.sendObstacle(obstacle.detected());   // <<< serial_comm hazir olunca ac
+        Serial.print("OBSTACLE=");
+        serial.sendObstacle(micros(), obstacle.detected());
+    }
+
+    // : Manuel/Otonom switch (2 pin) -> ROS ($SAFETY,t_us,estop,manual)
+    if (safetyTxTimer.tick()) {
+        const bool sel_manuel = (digitalRead(MODE_PIN_MANUEL) == LOW);  // : manuel secili
+        const bool sel_otonom = (digitalRead(MODE_PIN_OTONOM) == LOW);  // : otonom secili
+        bool manual;
+        if (sel_manuel && !sel_otonom)      manual = true;   // : manuel secili
+        else if (sel_otonom && !sel_manuel) manual = false;  // : otonom secili
+        else                                manual = true;   // : belirsiz/kopuk -> manuel (guvenli)
+        serial.sendSafety(micros(), false, manual);          // : estop=0 (henuz donanim yok)
+    }
+
     if (!controlTimer.tick())
         return;
 
@@ -191,7 +217,6 @@ void loop() {
 
     if (serial.hasCmdVel()) {
         const CmdVel cmd = serial.getCmdVel();
-
         v_target = cmd.v;
         w_target = cmd.w;
         base_motion_active =
@@ -216,7 +241,6 @@ void loop() {
         pidR.reset();
     }
 
-    // Açısal hedef doğrudan hız komutundan alınır.
     const float w_cmd = w_target;
 
     velocityCmd.setTarget(v_target, w_cmd);
@@ -225,7 +249,6 @@ void loop() {
     float omegaLt = 0.0f, omegaRt = 0.0f;
     velocityCmd.getWheelTargets(omegaLt, omegaRt);
 
-    // Enkoderi ikinci kez okumadan, bu turda yakalanan farkları kullan.
     const int32_t dL = last_dL_ctrl;
     const int32_t dR = last_dR_ctrl;
 
@@ -235,14 +258,9 @@ void loop() {
     float pwmL = pidL.update(omegaLt, kinOut.omega_left, dt);
     float pwmR = pidR.update(omegaRt, kinOut.omega_right, dt);
 
-
-
-    // Tekerlekler arasındaki ölçülmüş mekanik hız farkını son aşamada düzeltir.
     pwmL *= WHEEL_TRIM_L;
     pwmR *= WHEEL_TRIM_R;
 
-
     motorL.setPWM((int)pwmL);
     motorR.setPWM((int)pwmR);
-
 }

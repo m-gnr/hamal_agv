@@ -1,4 +1,9 @@
 hamals_plc_bridge:
   ros__parameters:
-    transport: pending_official_protocol
-    auto_grant_door: false
+    transport: udp
+    plc_ip: 10.100.68.144
+    plc_port: 1515
+    tx_rate_hz: 1.0
+    rx_timeout_sec: 1.0
+    pose_topic: /odom
+    door_id: MAIN_DOOR

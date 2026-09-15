@@ -1,8 +1,8 @@
+
 #!/usr/bin/env python3
 
 from __future__ import annotations
 
-import math
 import threading
 import time
 
@@ -13,218 +13,112 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 
 from geometry_msgs.msg import Twist
-from nav_msgs.msg import Odometry
-from std_msgs.msg import Bool, Float32, Int32, String
+from nav_msgs.msg import Odometry  # yous: pickup 12cm nudge icin
+from std_msgs.msg import Bool, Int32
 
 from hamals_interfaces.action import Dock
-from hamals_interfaces.msg import QrDetection  # yous: /qr/detection (x, yaw, conf)
 
 
 class DockingNode(Node):
+    """HAMAL docking - cizgi takibi + yuk (MZ80).
+
+    /dock beklenir, bosta hicbir cmd yayinlanmaz.
+      - pickup : cizgiyi takip et -> MZ80 hedefi gorunce DUR -> succeed.
+                 yous: cizgi biter ve MZ80 GELMEZSE -> odometri ile 12cm
+                 ilerle -> DUR -> succeed.
+      - dropoff: cizgiyi takip et -> cizgi bitince (kaybolunca) DUR -> succeed.
+    Dropoff'un mesafe/donus/yuk-birakma kismi MISSION katmaninda yapilir.
+    """
 
     def __init__(self):
         super().__init__("hamals_docking")
 
-        # ============================================================
-        # PARAMETERS
-        # ============================================================
+        # Line follow (kucuk calisan script ile AYNI degerler)
+        self.speed = 0.10
+        self.gain = 0.050
+        self.deadband = 18.0
+        self.smoothing = 0.35
+        self.max_turn = 0.45
+        self.invert = True
+        self.line_lost_sec = 5.0
+        # Extra smoothing / angular acceleration limit
+        self.max_turn_step = 0.04
 
-        self.declare_parameter("speed_mps", 0.10)
+        # pickup icin MZ80; dropoff cizgi bitince biter.
+        self.pickup_arm_time_s = 2.0
+        self.dropoff_lost_grace_s = 1.0
+        self.timeout_sec = 120.0
 
-        self.declare_parameter("line_gain", 0.0015)
-        self.declare_parameter("line_deadband_px", 18.0)
-        self.declare_parameter("line_smoothing", 0.35)
-        self.declare_parameter("line_max_turn", 0.20)
-        self.declare_parameter("line_invert", False)
+        # : pickup - cizgi bitince MZ80 yoksa odometri ile ilerle
+        self.pickup_nudge_distance_m = 0.12
+        self.pickup_nudge_speed = 0.08
+        self.odom_timeout_sec = 0.5
 
-        self.declare_parameter("line_lost_sec", 0.75)
+        # ==================================================
+        # DROPOFF / GERI HAT TAKIBI + 180 DERECE DONUS
+        # Bu degerler basarili geri hat testindeki ayarlardir.
+        # ==================================================
+        self.dropoff_follow_distance_m = 1.0 # 
+        self.dropoff_follow_speed = 0.10
+        self.dropoff_turn_speed = 0.25
+        self.dropoff_line_invert = True
+        self.dropoff_timeout_sec = 60.0
+        self.dropoff_turn_timeout_sec = 60.0
 
-        self.declare_parameter("timeout_sec", 60.0)
+        # MZ80
+        self.mz80_active_low = False
 
-        self.declare_parameter("qr_wait_sec", 3.0)
-
-        # Maximum age of the latest /proximity/alive message.
-        # Prevents a stale True from being accepted if the proximity node stops.
-        self.declare_parameter("proximity_alive_timeout_sec", 0.5)
-
-        # Distance gate for MZ80 arming. The distance is integrated from
-        # encoder-derived forward velocity on the configured odometry topic.
-        self.declare_parameter("proximity_arm_distance_m", 0.50)
-        self.declare_parameter("proximity_odom_topic", "/odom_raw")
-        self.declare_parameter("proximity_odom_timeout_sec", 0.5)
-        self.declare_parameter("proximity_enable_refresh_sec", 0.2)
-
-        # Dropoff completes by encoder-derived travelled distance.
-        # MZ80 stays disabled for the entire dropoff docking operation.
-        self.declare_parameter("dropoff_line_distance_m", 1.50)
-
-        # QR SEARCH
-        self.declare_parameter(
-            "max_search_attempts",
-            3
-        )
-
-        self.declare_parameter(
-            "search_timeout_sec",
-            12.0
-        )
-
-        self.declare_parameter(
-            "search_angular_speed",
-            0.18
-        )
-
-        self.declare_parameter(
-            "search_angles_deg",
-            [
-                60.0,
-                -120.0,
-                120.0,
-                -120.0,
-                120.0,
-            ]
-        )
-
-        # yous: VISUAL SERVO - /qr/detection.x ile QR'a dogru donerek ortala
-        self.declare_parameter("vs_enabled", True)       # false -> sadece donerek arama
-        self.declare_parameter("vs_kp", 1.2)             # rad/s her metre yanal
-        self.declare_parameter("vs_max_turn", 0.35)      # rad/s tavan
-        self.declare_parameter("vs_center_tol_m", 0.04)  # |x|<tol -> ortalanmis
-        self.declare_parameter("vs_min_confidence", 0.15)
-        self.declare_parameter("vs_invert", False)       # ters donerse true yap
-        self.declare_parameter("vs_creep_mps", 0.0)      # servo sirasinda ileri (ops.)
-        self.declare_parameter("vs_lost_sec", 1.0)       # tespit kaybi -> taramaya don
-        self.declare_parameter("vs_center_timeout_sec", 6.0)
-        self.declare_parameter("detection_fresh_sec", 0.4)
-
-        # ============================================================
+        # =========================
         # STATE
-        # ============================================================
-
-        self.qr_detected = False
-        self.qr_text = ""
-
-        # yous: /qr/detection son mesaji + tazelik zamani
-        self.qr_det = None
-        self.qr_det_time = 0.0
+        # =========================
+        self.lock = threading.RLock()
+        self.action_running = False
+        self.active = False
 
         self.line_detected = False
-        self.line_error = 0.0
-        self.line_last_seen = time.monotonic()
+        self.error = 0.0
+        self.line_last_seen = 0.0
 
-        self.proximity_detected = False
-        self.proximity_alive = False
-        self.proximity_alive_last_seen = None
+        self.mz80_detected = False
+        self.mz80_armed = False
 
-        self.proximity_odom_linear_x = 0.0
-        self.proximity_odom_last_seen = None
+        self.filtered_turn = 0.0
 
-        self.action_running = False
+        # : odometri
+        # Pickup 12cm nudge hiz kontrolunde kullanilir.
+        # Dropoff geri hareket mesafesi ve 180 derece donus de burada takip edilir.
+        self.odom_linear_x = 0.0
+        self.odom_angular_z = 0.0
+        self.odom_x = 0.0
+        self.odom_y = 0.0
+        self.odom_last_seen = None
 
-        self.lock = threading.RLock()
-
-        # ============================================================
-        # CALLBACK GROUP
-        # ============================================================
-
-        self.callback_group = ReentrantCallbackGroup()
-
-        # ============================================================
-        # PUBLISHER
-        # ============================================================
+        self.cb_group = ReentrantCallbackGroup()
 
         self.cmd_pub = self.create_publisher(
-            Twist,
-            "/cmd_vel/docking",
-            10,
-        )
-
-        self.proximity_enable_pub = self.create_publisher(
-            Bool,
-            "/proximity/enable",
-            10,
-        )
-
-        # ============================================================
-        # QR
-        # ============================================================
-
-        self.create_subscription(
-            Bool,
-            "/qr/detected",
-            self.qr_detected_callback,
-            10,
-            callback_group=self.callback_group,
+            Twist, "/cmd_vel/docking", 10
         )
 
         self.create_subscription(
-            String,
-            "/qr/text",
-            self.qr_text_callback,
-            10,
-            callback_group=self.callback_group,
+            Bool, "/line/detected",
+            self.line_detected_callback, 10,
+            callback_group=self.cb_group,
         )
-
-        # yous: QR goreli konum/aci (visual servo icin)
         self.create_subscription(
-            QrDetection,
-            "/qr/detection",
-            self.qr_detection_callback,
-            10,
-            callback_group=self.callback_group,
+            Int32, "/line/error",
+            self.line_error_callback, 10,
+            callback_group=self.cb_group,
         )
-
-        # ============================================================
-        # LINE
-        # ============================================================
-
         self.create_subscription(
-            Bool,
-            "/line/detected",
-            self.line_detected_callback,
-            10,
-            callback_group=self.callback_group,
+            Bool, "/proximity/raw",
+            self.mz80_callback, 10,
+            callback_group=self.cb_group,
         )
-
         self.create_subscription(
-            Int32,
-            "/line/error",
-            self.line_error_callback,
-            10,
-            callback_group=self.callback_group,
+            Odometry, "/odom",
+            self.odom_callback, 10,
+            callback_group=self.cb_group,
         )
-
-        # ============================================================
-        # PROXIMITY
-        # ============================================================
-
-        self.create_subscription(
-            Bool,
-            "/proximity/detected",
-            self.proximity_detected_callback,
-            10,
-            callback_group=self.callback_group,
-        )
-
-        self.create_subscription(
-            Bool,
-            "/proximity/alive",
-            self.proximity_alive_callback,
-            10,
-            callback_group=self.callback_group,
-        )
-
-        self.create_subscription(
-            Odometry,
-            str(self.get_parameter("proximity_odom_topic").value),
-            self.proximity_odom_callback,
-            10,
-            callback_group=self.callback_group,
-        )
-
-        # ============================================================
-        # ACTION SERVER
-        # ============================================================
 
         self.action_server = ActionServer(
             self,
@@ -233,1396 +127,574 @@ class DockingNode(Node):
             execute_callback=self.execute_callback,
             goal_callback=self.goal_callback,
             cancel_callback=self.cancel_callback,
-            callback_group=self.callback_group,
+            callback_group=self.cb_group,
         )
 
         self.get_logger().info(
-            "================================================"
-        )
-        self.get_logger().info(
-            "HAMALS DOCKING STARTED"
-        )
-        self.get_logger().info(
-            "QR SEARCH + LINE FOLLOWING"
-        )
-        self.get_logger().info(
-            "PICKUP SUCCESS = PROXIMITY | DROPOFF SUCCESS = DISTANCE"
-        )
-        self.get_logger().info(
-            "================================================"
+            "DOCKING READY | waits for /dock | LINE FOLLOW + MZ80 "
+            "| pickup 12cm nudge (odom)"
         )
 
-    # ================================================================
-    # GOAL CALLBACK
-    # ================================================================
+    # ==================================================
+    # ACTION CALLBACKS
+    # ==================================================
 
     def goal_callback(self, goal_request):
-
         with self.lock:
-
             if self.action_running:
-
-                self.get_logger().warning(
-                    "DOCK GOAL REJECTED: "
-                    "another docking action is running"
-                )
-
+                self.get_logger().warning("DOCK REJECTED: already running")
                 return GoalResponse.REJECT
-
             self.action_running = True
 
         self.get_logger().info(
-            f"DOCK GOAL RECEIVED | "
-            f"station={goal_request.station_id} | "
-            f"operation={goal_request.operation} | "
-            f"QR={goal_request.expected_qr}"
+            f"DOCK GOAL | station={goal_request.station_id} | "
+            f"operation={goal_request.operation}"
         )
-
         return GoalResponse.ACCEPT
 
-    # ================================================================
-    # CANCEL
-    # ================================================================
-
     def cancel_callback(self, goal_handle):
-
-        self.get_logger().warning(
-            "DOCK CANCEL REQUESTED"
-        )
-
+        self.get_logger().warning("DOCK CANCEL REQUESTED")
         return CancelResponse.ACCEPT
 
-    # ================================================================
-    # QR DETECTED
-    # ================================================================
-
-    def qr_detected_callback(self, msg):
-
-        with self.lock:
-
-            self.qr_detected = bool(msg.data)
-
-    # ================================================================
-    # QR TEXT
-    # ================================================================
-
-    def qr_text_callback(self, msg):
-
-        with self.lock:
-
-            self.qr_text = msg.data.strip()
-
-    # yous: /qr/detection callback
-    def qr_detection_callback(self, msg):
-
-        with self.lock:
-
-            self.qr_det = msg
-
-            if msg.detected:
-
-                self.qr_det_time = time.monotonic()
-
-    # ================================================================
-    # LINE DETECTED
-    # ================================================================
+    # ==================================================
+    # SENSOR CALLBACKS
+    # ==================================================
 
     def line_detected_callback(self, msg):
-
         with self.lock:
-
             self.line_detected = bool(msg.data)
-
             if self.line_detected:
-
                 self.line_last_seen = time.monotonic()
 
-    # ================================================================
-    # LINE ERROR
-    # ================================================================
-
     def line_error_callback(self, msg):
-
         with self.lock:
+            self.error = float(msg.data)
 
-            self.line_error = float(msg.data)
-
-    # ================================================================
-    # PROXIMITY
-    # ================================================================
-
-    def proximity_detected_callback(self, msg):
-
+    def mz80_callback(self, msg):
+        raw = bool(msg.data)
+        detected = (not raw) if self.mz80_active_low else raw
         with self.lock:
+            self.mz80_detected = detected and self.mz80_armed
 
-            self.proximity_detected = bool(msg.data)
-
-    def proximity_alive_callback(self, msg):
-
+    def odom_callback(self, msg):
+        # Odometry:
+        # - pickup nudge icin linear.x
+        # - dropoff geri mesafe icin x/y
+        # - dropoff 180 derece donus icin angular.z
         with self.lock:
+            self.odom_linear_x = float(msg.twist.twist.linear.x)
+            self.odom_angular_z = float(msg.twist.twist.angular.z)
+            self.odom_x = float(msg.pose.pose.position.x)
+            self.odom_y = float(msg.pose.pose.position.y)
+            self.odom_last_seen = time.monotonic()
 
-            self.proximity_alive = bool(msg.data)
-            self.proximity_alive_last_seen = time.monotonic()
-
-    def proximity_odom_callback(self, msg):
-
-        with self.lock:
-
-            self.proximity_odom_linear_x = float(
-                msg.twist.twist.linear.x
-            )
-            self.proximity_odom_last_seen = time.monotonic()
-
-    def set_proximity_enabled(self, enabled):
-
-        msg = Bool()
-        msg.data = bool(enabled)
-
-        self.proximity_enable_pub.publish(msg)
-
-    # ================================================================
+    # ==================================================
     # STOP
-    # ================================================================
+    # ==================================================
 
     def stop_robot(self):
-
         cmd = Twist()
-
-        for _ in range(5):
-
+        for _ in range(3):
             self.cmd_pub.publish(cmd)
-
             time.sleep(0.02)
 
-    # ================================================================
-    # RESET SENSORS
-    # ================================================================
+    # ==================================================
+    # yous: pickup - odometri ile duz ilerle (12cm), sonra dur
+    # ==================================================
 
-    def reset_runtime_state(self):
-
+    def drive_forward_odom(self, goal_handle, distance_m, speed):
         with self.lock:
-
-            self.qr_detected = False
-            self.qr_text = ""
-
-            self.line_detected = False
-            self.line_error = 0.0
-            self.line_last_seen = time.monotonic()
-
-            self.proximity_detected = False
-
-    # ================================================================
-    # QR CHECK
-    # ================================================================
-
-    def qr_is_correct(self, expected_qr):
-
-        with self.lock:
-
-            if not self.qr_detected:
-                return False
-
-            detected_text = self.qr_text.strip()
-            expected_text = expected_qr.strip()
-
-            if not detected_text:
-                return False
-
-            return detected_text == expected_text
-
-    # ================================================================
-    # FIND QR  (yous)
-    # Her QR yaklasmasinda cagrilir. Once pasif izleme + gorulurse
-    # visual servo (akilli), sonra donerek arama (yedek).
-    # DONER: (found: bool, qr_data: str)
-    # ================================================================
-
-    def _qr_text_now(self):
-        with self.lock:
-            return self.qr_text
-
-    def _detection_fresh(self):
-        with self.lock:
-            det = self.qr_det
-            t = self.qr_det_time
-        if det is None or not det.detected:
+            odom_seen = self.odom_last_seen
+        if odom_seen is None:
+            self.get_logger().error("NUDGE ABORT | odom yok")
             return False
-        if time.monotonic() - t > float(
-                self.get_parameter("detection_fresh_sec").value):
-            return False
-        return float(det.confidence) >= float(
-            self.get_parameter("vs_min_confidence").value)
 
-    def _visual_servo(self, goal_handle, expected_qr):
-        # QR'a dogru donerek ortala. found+ortalanmis -> True
-        kp = float(self.get_parameter("vs_kp").value)
-        max_turn = float(self.get_parameter("vs_max_turn").value)
-        tol = float(self.get_parameter("vs_center_tol_m").value)
-        creep = float(self.get_parameter("vs_creep_mps").value)
-        invert = bool(self.get_parameter("vs_invert").value)
-        lost = float(self.get_parameter("vs_lost_sec").value)
-        vs_to = float(self.get_parameter("vs_center_timeout_sec").value)
+        travelled = 0.0
+        last_t = time.monotonic()
+        deadline = time.monotonic() + 8.0
+        self.get_logger().info(f"PICKUP NUDGE | {distance_m:.2f} m (odom)")
 
-        self.get_logger().info("VISUAL SERVO | centering QR")
-        t_end = time.monotonic() + vs_to
-        last_seen = time.monotonic()
-
-        while rclpy.ok():
+        while rclpy.ok() and time.monotonic() < deadline:
             if goal_handle.is_cancel_requested:
                 self.stop_robot()
                 return False
-            if time.monotonic() > t_end:
+
+            now = time.monotonic()
+            with self.lock:
+                vx = self.odom_linear_x
+                odom_last = self.odom_last_seen
+
+            if odom_last is None or now - odom_last > self.odom_timeout_sec:
                 self.stop_robot()
+                self.get_logger().error("NUDGE ABORT | odom bayat")
                 return False
 
-            if self._detection_fresh():
-                last_seen = time.monotonic()
-                with self.lock:
-                    lateral = float(self.qr_det.x)  # metre, kamera cercevesi
-                if self.qr_is_correct(expected_qr) and abs(lateral) <= tol:
-                    self.stop_robot()
-                    return True
-                turn = -kp * lateral       # x>0 (sagda) -> saga don
-                if invert:
-                    turn = -turn
-                turn = max(-max_turn, min(max_turn, turn))
-                cmd = Twist()
-                cmd.linear.x = creep
-                cmd.angular.z = turn
-                self.cmd_pub.publish(cmd)
-            else:
-                if time.monotonic() - last_seen > lost:
-                    self.stop_robot()
-                    return False
-                self.cmd_pub.publish(Twist())
+            dt = max(0.0, now - last_t)
+            last_t = now
+            travelled += max(0.0, vx) * dt
 
-            time.sleep(0.03)
-
-        return False
-
-    def find_qr(self, goal_handle, expected_qr):
-        vs_on = bool(self.get_parameter("vs_enabled").value)
-
-        self.get_logger().info(
-            f"FIND QR | expected={expected_qr} | vs={vs_on}")
-
-        # zaten dogru gorunuyorsa
-        if self.qr_is_correct(expected_qr):
-            return True, self._qr_text_now()
-
-        # 1) pasif izleme (Nav2 paralel) + gorulurse visual servo
-        wait = float(self.get_parameter("qr_wait_sec").value)
-        end = time.monotonic() + wait
-        while rclpy.ok() and time.monotonic() < end:
-            if goal_handle.is_cancel_requested:
-                self.stop_robot()
-                return False, self._qr_text_now()
-            if self.qr_is_correct(expected_qr):
-                return True, self._qr_text_now()
-            if vs_on and self._detection_fresh():
-                if self._visual_servo(goal_handle, expected_qr):
-                    return True, self._qr_text_now()
-                break  # servo bitti/kayip -> donerek aramaya gec
-            time.sleep(0.03)
-
-        # 2) donerek arama (mevcut search_qr, kor durum yedegi)
-        ok, _msg = self.search_qr(goal_handle, expected_qr)
-        return bool(ok), self._qr_text_now()
-
-    # ================================================================
-    # WAIT FOR QR
-    # ================================================================
-
-    def wait_for_qr(
-        self,
-        goal_handle,
-        expected_qr,
-    ):
-
-        wait_sec = float(
-            self.get_parameter(
-                "qr_wait_sec"
-            ).value
-        )
-
-        self.get_logger().info(
-            "================================================"
-        )
-
-        self.get_logger().info(
-            f"QR INITIAL SEARCH | "
-            f"expected={expected_qr}"
-        )
-
-        self.get_logger().info(
-            f"waiting={wait_sec:.2f}s"
-        )
-
-        self.get_logger().info(
-            "================================================"
-        )
-
-        start = time.monotonic()
-
-        while rclpy.ok():
-
-            if goal_handle.is_cancel_requested:
-
-                self.stop_robot()
-
-                return False, "cancelled"
-
-            if self.qr_is_correct(expected_qr):
-
-                self.get_logger().info(
-                    f"QR FOUND | {expected_qr}"
-                )
-
-                return True, "QR confirmed"
-
-            if (
-                time.monotonic()
-                - start
-                >= wait_sec
-            ):
-
-                return False, "QR not found"
-
-            time.sleep(0.03)
-
-        return False, "ROS shutdown"
-
-    # ================================================================
-    # ROTATION
-    # ================================================================
-
-    def rotate_relative(
-        self,
-        goal_handle,
-        angle_deg,
-    ):
-
-        angular_speed = float(
-            self.get_parameter(
-                "search_angular_speed"
-            ).value
-        )
-
-        if angular_speed <= 0.0:
-
-            return False, "invalid search angular speed"
-
-        angle_rad = math.radians(
-            abs(angle_deg)
-        )
-
-        direction = (
-            1.0
-            if angle_deg > 0.0
-            else -1.0
-        )
-
-        duration = (
-            angle_rad
-            / angular_speed
-        )
-
-        self.get_logger().info(
-            f"QR SEARCH ROTATION | "
-            f"{angle_deg:.1f} deg | "
-            f"{duration:.2f}s"
-        )
-
-        start = time.monotonic()
-
-        while rclpy.ok():
-
-            if goal_handle.is_cancel_requested:
-
-                self.stop_robot()
-
-                return False, "cancelled"
-
-            if (
-                time.monotonic()
-                - start
-                >= duration
-            ):
-
-                self.stop_robot()
-
-                return True, "rotation completed"
-
-            if self.qr_is_correct(
-                self._search_expected_qr
-            ):
-
-                self.stop_robot()
-
-                return True, "QR found during rotation"
+            if travelled >= distance_m:
+                break
 
             cmd = Twist()
-
-            cmd.linear.x = 0.0
-
-            cmd.angular.z = (
-                direction
-                * angular_speed
-            )
-
+            cmd.linear.x = speed
             self.cmd_pub.publish(cmd)
-
-            time.sleep(0.02)
+            time.sleep(0.05)
 
         self.stop_robot()
+        self.get_logger().info(f"PICKUP NUDGE DONE | {travelled:.2f} m")
+        return True
 
-        return False, "ROS shutdown"
+    # ==================================================
+    # DROPOFF GERI HAT TAKIBI
+    # ==================================================
 
-    # ================================================================
-    # SEARCH QR
-    # ================================================================
+    def follow_reverse_line(self, goal_handle):
+        # ==================================================
+        # GERI HAT SARTLARI
+        # ==================================================
+        # 1) Arka kamera ile cizgiyi takip et.
+        # 2) Robot linear.x NEGATIF olacak.
+        # 3) Mesafe /odom pozisyonundan hesaplanir.
+        # 4) 100 cm tamamlaninca robot DURUR.
+        # 5) Sonra ayni /odom kullanilarak 180 derece SOLA doner.
+        # 6) Basarili geri testte kullanilan smooth ayarlari korunur:
+        #    gain=0.050, deadband=18, smoothing=0.35,
+        #    max_turn=0.45, max_turn_step=0.04, invert=True.
+        with self.lock:
+            start_x = self.odom_x
+            start_y = self.odom_y
+            self.filtered_turn = 0.0
+            self.active = True
 
-    def search_qr(
-        self,
-        goal_handle,
-        expected_qr,
-    ):
+        start_time = time.monotonic()
+        last_log = start_time
 
-        self._search_expected_qr = expected_qr
-
-        max_attempts = int(
-            self.get_parameter(
-                "max_search_attempts"
-            ).value
-        )
-
-        search_timeout = float(
-            self.get_parameter(
-                "search_timeout_sec"
-            ).value
-        )
-
-        angles = list(
-            self.get_parameter(
-                "search_angles_deg"
-            ).value
-        )
-
+        self.get_logger().info("DROPOFF GERI HAT TAKIBI BASLADI")
         self.get_logger().info(
-            "================================================"
+            f"HEDEF MESAFE: {self.dropoff_follow_distance_m:.2f} m"
         )
 
-        self.get_logger().info(
-            f"QR SEARCH START | "
-            f"expected={expected_qr}"
-        )
-
-        self.get_logger().info(
-            f"attempts={max_attempts}"
-        )
-
-        self.get_logger().info(
-            f"angles={angles}"
-        )
-
-        self.get_logger().info(
-            "================================================"
-        )
-
-        search_start = time.monotonic()
-
-        for attempt in range(
-            1,
-            max_attempts + 1,
-        ):
-
-            self.get_logger().info(
-                f"QR SEARCH ATTEMPT "
-                f"{attempt}/{max_attempts}"
-            )
-
-            # --------------------------------------------------------
-            # Check before rotating
-            # --------------------------------------------------------
-
-            if self.qr_is_correct(
-                expected_qr
-            ):
-
-                self.stop_robot()
-
-                return True, "QR found"
-
-            # --------------------------------------------------------
-            # Search pattern
-            # --------------------------------------------------------
-
-            for angle in angles:
-
+        try:
+            while rclpy.ok():
                 if goal_handle.is_cancel_requested:
-
                     self.stop_robot()
-
                     return False, "cancelled"
 
-                if (
-                    time.monotonic()
-                    - search_start
-                    > search_timeout
-                ):
+                now = time.monotonic()
 
+                if now - start_time > self.dropoff_timeout_sec:
                     self.stop_robot()
+                    self.get_logger().error("DROPOFF GERI HAT TIMEOUT")
+                    return False, "reverse line follow timeout"
 
-                    self.get_logger().warning(
-                        "QR SEARCH TIMEOUT"
-                    )
+                with self.lock:
+                    line_detected = self.line_detected
+                    error = self.error
+                    line_last_seen = self.line_last_seen
+                    x = self.odom_x
+                    y = self.odom_y
+                    odom_last = self.odom_last_seen
 
-                    return False, "QR search timeout"
-
-                if self.qr_is_correct(
-                    expected_qr
-                ):
-
+                if odom_last is None or now - odom_last > self.odom_timeout_sec:
                     self.stop_robot()
+                    self.get_logger().error("DROPOFF ABORT | odom bayat")
+                    return False, "odometry unavailable"
 
-                    return True, "QR found"
+                # Baslangictan olan gercek x/y displacement.
+                distance = ((x - start_x) ** 2 + (y - start_y) ** 2) ** 0.5
 
-                ok, message = (
-                    self.rotate_relative(
-                        goal_handle,
-                        float(angle),
+                # 100 cm tamamlandiysa dur ve basarili don.
+                if distance >= self.dropoff_follow_distance_m:
+                    self.stop_robot()
+                    self.get_logger().info(
+                        "========================================"
                     )
+                    self.get_logger().info("DROPOFF GERI HAREKET TAMAMLANDI")
+                    self.get_logger().info(
+                        f"TOPLAM MESAFE = {distance:.3f} m"
+                    )
+                    return True, "dropoff reverse line distance complete"
+
+                line_fresh = (
+                    line_detected
+                    and now - line_last_seen <= self.line_lost_sec
                 )
 
-                if not ok:
+                # ==================================================
+                # GERI HAT LINE CONTROLLER
+                # Front controller ile ayni mantik + rate limit.
+                # Sadece linear.x negatiftir ve invert bagimsizdir.
+                # ==================================================
+                if line_fresh:
+                    if abs(error) <= self.deadband:
+                        corrected_error = 0.0
+                    elif error > 0.0:
+                        corrected_error = error - self.deadband
+                    else:
+                        corrected_error = error + self.deadband
 
-                    self.stop_robot()
+                    turn = self.gain * corrected_error
 
-                    return False, message
+                    if self.dropoff_line_invert:
+                        turn = -turn
 
-                if self.qr_is_correct(
-                    expected_qr
-                ):
-
-                    self.stop_robot()
-
-                    self.get_logger().info(
-                        f"QR FOUND DURING SEARCH | "
-                        f"{expected_qr}"
+                    # Ilk smoothing
+                    target_turn = (
+                        self.smoothing * turn
+                        + (1.0 - self.smoothing) * self.filtered_turn
                     )
 
-                    return True, "QR found"
+                    # Extra rate limit: ani saga/sola kirma engellenir.
+                    turn_difference = target_turn - self.filtered_turn
+                    turn_difference = max(
+                        -self.max_turn_step,
+                        min(self.max_turn_step, turn_difference),
+                    )
+                    self.filtered_turn += turn_difference
+                else:
+                    # Cizgi gecici olarak kaybolursa direksiyonu sifirla.
+                    self.filtered_turn = 0.0
+
+                self.filtered_turn = max(
+                    -self.max_turn,
+                    min(self.max_turn, self.filtered_turn)
+                )
+
+                cmd = Twist()
+                if line_fresh:
+                    cmd.linear.x = -abs(self.dropoff_follow_speed)
+                    cmd.angular.z = self.filtered_turn
+                else:
+                    # Cizgi kayipsa ileri/geri hareket etme.
+                    cmd.linear.x = 0.0
+                    cmd.angular.z = 0.0
+
+                self.cmd_pub.publish(cmd)
+
+                if now - last_log >= 1.0:
+                    self.get_logger().info(
+                        f"GERI DEBUG | distance={distance:.3f} m | "
+                        f"X={x:.3f} | Y={y:.3f} | "
+                        f"line={line_fresh} | error={error:.1f} | "
+                        f"turn={self.filtered_turn:.3f}"
+                    )
+                    last_log = now
+
+                time.sleep(0.05)
 
             self.stop_robot()
+            return False, "ROS shutdown"
 
-            time.sleep(0.20)
+        finally:
+            with self.lock:
+                self.active = False
+            self.stop_robot()
 
-        self.stop_robot()
+    def rotate_dropoff_180(self, goal_handle):
+        # ==================================================
+        # DROPOFF DONUS SARTI
+        # Geri hat tamamlandiktan sonra yerinde 180 derece SOLA don.
+        # Aci /odom angular.z uzerinden olculur.
+        # ==================================================
+        with self.lock:
+            start_angular_z = self.odom_angular_z
+            self.odom_start_yaw = None
 
-        self.get_logger().warning(
-            f"QR SEARCH FAILED | "
-            f"expected={expected_qr}"
-        )
+        # Baslangic yaw'i quaternion'dan okumak yerine,
+        # /odom angular.z integrasyonu ile aciyi olcuyoruz.
+        total_angle = 0.0
+        last_t = time.monotonic()
+        start_time = last_t
+        last_log_deg = 0
 
-        return False, "QR not found after search"
+        self.get_logger().info("180 DERECE SOLA DONUS BASLIYOR")
 
-    # ================================================================
-    # LINE FOLLOW
-    # ================================================================
+        try:
+            while rclpy.ok():
+                if goal_handle.is_cancel_requested:
+                    self.stop_robot()
+                    return False, "cancelled"
 
-    def follow_line(
-        self,
-        goal_handle,
-        operation,
-    ):
+                now = time.monotonic()
 
-        speed = float(
-            self.get_parameter(
-                "speed_mps"
-            ).value
-        )
+                if now - start_time > self.dropoff_turn_timeout_sec:
+                    self.stop_robot()
+                    self.get_logger().error("DROPOFF DONUS TIMEOUT")
+                    return False, "180 degree turn timeout"
 
-        gain = float(
-            self.get_parameter(
-                "line_gain"
-            ).value
-        )
+                with self.lock:
+                    angular_z = self.odom_angular_z
+                    odom_last = self.odom_last_seen
 
-        deadband = float(
-            self.get_parameter(
-                "line_deadband_px"
-            ).value
-        )
+                if odom_last is None or now - odom_last > self.odom_timeout_sec:
+                    self.stop_robot()
+                    self.get_logger().error("DONUS ABORT | odom bayat")
+                    return False, "odometry unavailable during turn"
 
-        smoothing = float(
-            self.get_parameter(
-                "line_smoothing"
-            ).value
-        )
+                dt = max(0.0, now - last_t)
+                last_t = now
 
-        max_turn = float(
-            self.get_parameter(
-                "line_max_turn"
-            ).value
-        )
+                # Sadece SOL donusu sayiyoruz.
+                total_angle += max(0.0, angular_z) * dt
+                turned_deg = min(180.0, total_angle * 180.0 / 3.141592653589793)
 
-        invert = bool(
-            self.get_parameter(
-                "line_invert"
-            ).value
-        )
+                remaining_deg = max(0.0, 180.0 - turned_deg)
 
-        line_lost_sec = float(
-            self.get_parameter(
-                "line_lost_sec"
-            ).value
-        )
+                # Hedefe yaklastikca hizi dusur.
+                if remaining_deg > 30.0:
+                    turn_speed = self.dropoff_turn_speed
+                elif remaining_deg > 15.0:
+                    turn_speed = 0.17
+                else:
+                    turn_speed = 0.10
 
-        timeout_sec = float(
-            self.get_parameter(
-                "timeout_sec"
-            ).value
-        )
+                if total_angle >= 3.141592653589793:
+                    break
 
-        proximity_alive_timeout_sec = max(
-            0.1,
-            float(
-                self.get_parameter(
-                    "proximity_alive_timeout_sec"
-                ).value
-            )
-        )
+                cmd = Twist()
+                cmd.angular.z = turn_speed
+                self.cmd_pub.publish(cmd)
 
-        proximity_arm_distance_m = max(
-            0.0,
-            float(
-                self.get_parameter(
-                    "proximity_arm_distance_m"
-                ).value
-            )
-        )
+                if turned_deg - last_log_deg >= 10.0:
+                    self.get_logger().info(
+                        f"DON | {turned_deg:.0f} / 180 deg | "
+                        f"kalan={remaining_deg:.0f} deg | "
+                        f"speed={turn_speed:.3f}"
+                    )
+                    last_log_deg = int(turned_deg / 10.0) * 10
 
-        proximity_odom_timeout_sec = max(
-            0.1,
-            float(
-                self.get_parameter(
-                    "proximity_odom_timeout_sec"
-                ).value
-            )
-        )
+                time.sleep(0.05)
 
-        proximity_enable_refresh_sec = max(
-            0.05,
-            float(
-                self.get_parameter(
-                    "proximity_enable_refresh_sec"
-                ).value
-            )
-        )
+            self.stop_robot()
+            final_deg = min(180.0, total_angle * 180.0 / 3.141592653589793)
+            self.get_logger().info("DROPOFF DONUS TAMAMLANDI")
+            self.get_logger().info(f"Donulen aci : {final_deg:.1f} deg")
+            return True, "dropoff 180 degree turn complete"
 
-        dropoff_line_distance_m = max(
-            0.0,
-            float(
-                self.get_parameter(
-                    "dropoff_line_distance_m"
-                ).value
-            )
-        )
+        finally:
+            self.stop_robot()
 
+    # ==================================================
+    # LINE FOLLOW (kucuk calisan script ile AYNI yasa)
+    # ==================================================
+
+    def follow_line(self, goal_handle, operation: str):
         is_pickup = operation == "pickup"
         is_dropoff = operation == "dropoff"
 
         if not is_pickup and not is_dropoff:
+            return False, f"unknown operation: {operation}"
 
-            self.stop_robot()
-            self.set_proximity_enabled(False)
-
-            self.get_logger().error(
-                f"UNKNOWN DOCKING OPERATION | {operation}"
-            )
-
-            return False, f"unknown docking operation: {operation}"
+        with self.lock:
+            self.active = True
+            self.mz80_armed = False
+            self.mz80_detected = False
+            self.filtered_turn = 0.0
+            self.line_last_seen = time.monotonic()
 
         start_time = time.monotonic()
 
-        filtered_turn = 0.0
-
-        # Distance starts at the first fresh line. Both operations use the
-        # encoder-derived /odom_raw linear velocity for travelled distance.
-        distance_tracking = False
-        travelled_distance_m = 0.0
-        distance_last_time = None
-
-        # Pickup only: MZ80 is armed after proximity_arm_distance_m.
-        proximity_armed = False
-        proximity_enable_last_publish = None
-
-        with self.lock:
-
-            self.proximity_detected = False
-
-        # Dropoff never uses MZ80 as a docking completion source.
-        self.set_proximity_enabled(False)
-
-        self.get_logger().info(
-            "================================================"
-        )
-
-        self.get_logger().info(
-            f"LINE FOLLOW START | operation={operation}"
-        )
-
-        self.get_logger().info(
-            f"speed={speed:.3f}"
-        )
-
-        self.get_logger().info(
-            f"gain={gain:.5f}"
-        )
-
-        self.get_logger().info(
-            f"max_turn={max_turn:.3f}"
-        )
-
-        if is_pickup:
-
-            self.get_logger().info(
-                "PICKUP MODE | "
-                "proximity=waiting_for_arm_distance | "
-                f"arm_distance={proximity_arm_distance_m:.3f}m"
-            )
-
-        else:
-
-            self.get_logger().info(
-                "DROPOFF MODE | proximity=disabled | "
-                f"finish_distance={dropoff_line_distance_m:.3f}m"
-            )
-
-        self.get_logger().info(
-            "================================================"
-        )
-
-        while rclpy.ok():
-
-            # --------------------------------------------------------
-            # CANCEL
-            # --------------------------------------------------------
-
-            if goal_handle.is_cancel_requested:
-
-                self.stop_robot()
-                self.set_proximity_enabled(False)
-
-                return False, "cancelled"
-
-            # --------------------------------------------------------
-            # TIMEOUT
-            # --------------------------------------------------------
-
-            if (
-                time.monotonic()
-                - start_time
-                > timeout_sec
-            ):
-
-                self.stop_robot()
-                self.set_proximity_enabled(False)
-
-                self.get_logger().error(
-                    "LINE FOLLOW TIMEOUT"
-                )
-
-                return False, "docking timeout"
-
-            # --------------------------------------------------------
-            # STATE
-            # --------------------------------------------------------
-
-            with self.lock:
-
-                line_detected = (
-                    self.line_detected
-                )
-
-                error = self.line_error
-
-                last_seen = (
-                    self.line_last_seen
-                )
-
-                proximity_alive = (
-                    self.proximity_alive
-                )
-
-                proximity_alive_last_seen = (
-                    self.proximity_alive_last_seen
-                )
-
-                proximity_detected = (
-                    self.proximity_detected
-                )
-
-                proximity_odom_linear_x = (
-                    self.proximity_odom_linear_x
-                )
-
-                proximity_odom_last_seen = (
-                    self.proximity_odom_last_seen
-                )
-
-            now = time.monotonic()
-
-            # --------------------------------------------------------
-            # LINE FRESHNESS
-            # --------------------------------------------------------
-
-            line_fresh = (
-                line_detected
-                and
-                (
-                    now
-                    - last_seen
-                    <= line_lost_sec
-                )
-            )
-
-            # --------------------------------------------------------
-            # ODOM FRESHNESS / DISTANCE TRACKING
-            # --------------------------------------------------------
-
-            odom_fresh = (
-                proximity_odom_last_seen is not None
-                and (
-                    now
-                    - proximity_odom_last_seen
-                    <= proximity_odom_timeout_sec
-                )
-            )
-
-            # Distance begins exactly when the first fresh line is acquired.
-            if line_fresh and not distance_tracking:
-
-                if not odom_fresh:
-
-                    self.stop_robot()
-                    self.set_proximity_enabled(False)
-
-                    self.get_logger().error(
-                        "DOCKING DISTANCE ODOM UNAVAILABLE OR STALE"
-                    )
-
-                    return False, "docking distance odom unavailable or stale"
-
-                distance_tracking = True
-                distance_last_time = now
-                travelled_distance_m = 0.0
-
-                if is_pickup:
-                    target_distance_m = proximity_arm_distance_m
-                    tracking_label = "PICKUP MZ80 ARM DISTANCE"
-                else:
-                    target_distance_m = dropoff_line_distance_m
-                    tracking_label = "DROPOFF FINISH DISTANCE"
-
-                self.get_logger().info(
-                    f"{tracking_label} TRACKING STARTED | "
-                    f"target={target_distance_m:.3f}m"
-                )
-
-            # After line tracking starts, distance is measured from encoder-derived
-            # forward velocity. Odom must remain fresh until the relevant criterion
-            # has been reached.
-            distance_needed = (
-                is_dropoff
-                or (is_pickup and not proximity_armed)
-            )
-
-            if distance_tracking and distance_needed:
-
-                if not odom_fresh:
-
-                    self.stop_robot()
-                    self.set_proximity_enabled(False)
-
-                    self.get_logger().error(
-                        "DOCKING DISTANCE ODOM UNAVAILABLE OR STALE"
-                    )
-
-                    return False, "docking distance odom unavailable or stale"
-
-                dt = max(
-                    0.0,
-                    now - distance_last_time
-                )
-                distance_last_time = now
-
-                # Reverse motion is not counted toward forward docking distance.
-                forward_speed = max(
-                    0.0,
-                    proximity_odom_linear_x
-                )
-
-                travelled_distance_m += (
-                    forward_speed * dt
-                )
-
-            # --------------------------------------------------------
-            # PICKUP: MZ80 COMPLETION
-            # --------------------------------------------------------
-
-            if is_pickup:
-
-                # Pickup requires a healthy, fresh proximity stream.
-                proximity_alive_fresh = (
-                    proximity_alive_last_seen is not None
-                    and (
-                        now
-                        - proximity_alive_last_seen
-                        <= proximity_alive_timeout_sec
-                    )
-                )
-
-                if not proximity_alive or not proximity_alive_fresh:
-
-                    self.stop_robot()
-                    self.set_proximity_enabled(False)
-
-                    self.get_logger().error(
-                        "PROXIMITY DATA UNAVAILABLE OR STALE"
-                    )
-
-                    return False, "proximity unavailable or stale"
-
-                # MZ80 becomes a docking decision source only after the configured
-                # forward distance has been completed, and only while line is fresh.
-                if (
-                    distance_tracking
-                    and not proximity_armed
-                    and line_fresh
-                    and travelled_distance_m
-                    >= proximity_arm_distance_m
-                ):
-
-                    self.set_proximity_enabled(True)
-                    proximity_armed = True
-                    proximity_enable_last_publish = now
-
-                    self.get_logger().info(
-                        "PROXIMITY ENABLED | "
-                        f"travelled={travelled_distance_m:.3f}m | "
-                        f"target={proximity_arm_distance_m:.3f}m"
-                    )
-
-                # Refresh enable=True while armed so a short monitor restart or
-                # missed volatile message cannot silently leave it disabled.
-                if (
-                    proximity_armed
-                    and (
-                        proximity_enable_last_publish is None
-                        or now - proximity_enable_last_publish
-                        >= proximity_enable_refresh_sec
-                    )
-                ):
-
-                    self.set_proximity_enabled(True)
-                    proximity_enable_last_publish = now
-
-                if proximity_armed and proximity_detected:
-
-                    self.stop_robot()
-                    self.set_proximity_enabled(False)
-
-                    self.get_logger().info(
-                        "================================================"
-                    )
-
-                    self.get_logger().info(
-                        "PICKUP PROXIMITY TARGET DETECTED"
-                    )
-
-                    self.get_logger().info(
-                        "DOCKING SUCCESS"
-                    )
-
-                    self.get_logger().info(
-                        "================================================"
-                    )
-
-                    return True, "pickup proximity detected"
-
-            # --------------------------------------------------------
-            # DROPOFF: DISTANCE COMPLETION, NO MZ80
-            # --------------------------------------------------------
-
-            else:
-
-                # MZ80 must remain passive for the entire dropoff docking.
-                # Completion depends only on encoder-derived forward travel.
-                if (
-                    distance_tracking
-                    and travelled_distance_m
-                    >= dropoff_line_distance_m
-                ):
-
-                    self.stop_robot()
-                    self.set_proximity_enabled(False)
-
-                    self.get_logger().info(
-                        "================================================"
-                    )
-
-                    self.get_logger().info(
-                        "DROPOFF DISTANCE REACHED | "
-                        f"travelled={travelled_distance_m:.3f}m | "
-                        f"target={dropoff_line_distance_m:.3f}m"
-                    )
-
-                    self.get_logger().info(
-                        "DOCKING SUCCESS"
-                    )
-
-                    self.get_logger().info(
-                        "================================================"
-                    )
-
-                    return True, "dropoff distance reached"
-
-            # --------------------------------------------------------
-            # LINE CONTROL
-            # --------------------------------------------------------
-
-            if line_fresh:
-
-                if (
-                    abs(error)
-                    <= deadband
-                ):
-
-                    corrected_error = 0.0
-
-                elif error > 0:
-
-                    corrected_error = (
-                        error
-                        - deadband
-                    )
-
-                else:
-
-                    corrected_error = (
-                        error
-                        + deadband
-                    )
-
-                turn = (
-                    -gain
-                    * corrected_error
-                )
-
-                if invert:
-
-                    turn = -turn
-
-                # Safety
-                smoothing = max(
-                    0.0,
-                    min(
-                        1.0,
-                        smoothing
-                    )
-                )
-
-                filtered_turn = (
-                    smoothing
-                    * turn
-                    +
-                    (1.0 - smoothing)
-                    * filtered_turn
-                )
-
-            else:
-
-                filtered_turn = 0.0
-
-            # --------------------------------------------------------
-            # TURN LIMIT
-            # --------------------------------------------------------
-
-            filtered_turn = max(
-                -max_turn,
-                min(
-                    max_turn,
-                    filtered_turn
-                )
-            )
-
-            # --------------------------------------------------------
-            # COMMAND
-            # --------------------------------------------------------
-
-            cmd = Twist()
-
-            cmd.linear.x = speed
-
-            cmd.angular.z = (
-                filtered_turn
-            )
-
-            self.cmd_pub.publish(cmd)
-
-            time.sleep(0.05)
-
-        self.stop_robot()
-        self.set_proximity_enabled(False)
-
-        return False, "ROS shutdown"
-
-    # ================================================================
-    # EXECUTE
-    # ================================================================
-
-    def execute_callback(
-        self,
-        goal_handle,
-    ):
-
-        expected_qr = str(
-            goal_handle.request.expected_qr
-        ).strip()
-
-        operation = str(
-            goal_handle.request.operation
-        ).strip().lower()
-
-        profile = str(
-            goal_handle.request.profile
-        ).strip()
+        self.get_logger().info(f"LINE FOLLOW START | op={operation}")
 
         try:
+            while rclpy.ok():
+                if goal_handle.is_cancel_requested:
+                    return False, "cancelled"
 
-            self.get_logger().info(
-                "================================================"
-            )
+                now = time.monotonic()
+                elapsed = now - start_time
 
-            self.get_logger().info(
-                "DOCK ACTION START"
-            )
+                if elapsed > self.timeout_sec:
+                    self.get_logger().error("LINE FOLLOW TIMEOUT")
+                    return False, "timeout"
 
-            self.get_logger().info(
-                f"station="
-                f"{goal_handle.request.station_id}"
-            )
+                with self.lock:
+                    line_detected = self.line_detected
+                    error = self.error
+                    line_last_seen = self.line_last_seen
+                    mz80_armed = self.mz80_armed
+                    mz80_detected = self.mz80_detected
 
-            self.get_logger().info(
-                f"operation={operation}"
-            )
-
-            self.get_logger().info(
-                f"expected_qr={expected_qr}"
-            )
-
-            self.get_logger().info(
-                f"profile={profile}"
-            )
-
-            self.get_logger().info(
-                "================================================"
-            )
-
-            # ========================================================
-            # OPERATION
-            # ========================================================
-
-            if operation not in (
-                "pickup",
-                "dropoff",
-            ):
-
-                self.stop_robot()
-                self.set_proximity_enabled(False)
-
-                self.get_logger().error(
-                    f"UNKNOWN DOCKING OPERATION | {operation}"
+                line_fresh = (
+                    line_detected
+                    and now - line_last_seen <= self.line_lost_sec
                 )
 
-                goal_handle.abort()
+                # ---- pickup: ZAMAN ile arm, MZ80 ile bitir ----
+                if is_pickup:
+                    if not mz80_armed and elapsed >= self.pickup_arm_time_s:
+                        with self.lock:
+                            self.mz80_armed = True
+                        self.get_logger().info("MZ80 ARMED")
 
-                return Dock.Result(
-                    success=False,
-                    message=f"unknown docking operation: {operation}",
+                    if mz80_detected:
+                        self.get_logger().info(
+                            "PICKUP COMPLETE | MZ80 confirmed"
+                        )
+                        return True, "pickup MZ80 confirmed"
+
+                    # yous: cizgi bitti + MZ80 YOK -> odometri ile 12cm ilerle -> dur
+                    if mz80_armed and not line_fresh:
+                        self.get_logger().info(
+                            "PICKUP LINE END | MZ80 yok -> 12cm ilerle"
+                        )
+                        if self.drive_forward_odom(
+                            goal_handle,
+                            self.pickup_nudge_distance_m,
+                            self.pickup_nudge_speed,
+                        ):
+                            return True, "pickup nudged (no MZ80)"
+                        return False, "pickup nudge failed"
+
+                # ---- dropoff: SADECE cizgi takip; cizgi bitince DUR ----
+                else:
+                    if not line_fresh and elapsed >= self.dropoff_lost_grace_s:
+                        self.get_logger().info(
+                            "DROPOFF LINE END | line lost -> stop"
+                        )
+                        return True, "dropoff line end"
+
+                # ---- KANITLANMIS cizgi takibi ----
+                if line_fresh:
+                    if abs(error) <= self.deadband:
+                        corrected_error = 0.0
+                    elif error > 0.0:
+                        corrected_error = error - self.deadband
+                    else:
+                        corrected_error = error + self.deadband
+
+                    turn = self.gain * corrected_error
+                    if self.invert:
+                        turn = -turn
+
+                    # ==================================================
+                    # FIRST SMOOTHING
+                    # ==================================================
+
+                    target_turn = (
+                        self.smoothing * turn
+                        + (1.0 - self.smoothing) * self.filtered_turn
+                    )
+
+                    # ==================================================
+                    # EXTRA RATE LIMIT
+            
+                    # ==================================================
+
+                    turn_difference = target_turn - self.filtered_turn
+
+                    turn_difference = max(
+                        -self.max_turn_step,
+                        min(
+                            self.max_turn_step,
+                            turn_difference,
+                        ),
+                    )
+
+                    self.filtered_turn += turn_difference
+                else:
+                    self.filtered_turn = 0.0
+
+                self.filtered_turn = max(
+                    -self.max_turn,
+                    min(self.max_turn, self.filtered_turn)
                 )
 
-            # ========================================================
-            # RESET
-            # ========================================================
+                cmd = Twist()
+                if line_fresh:
+                    cmd.linear.x = self.speed
+                    cmd.angular.z = self.filtered_turn
+                else:
+                    cmd.linear.x = 0.0
+                    cmd.angular.z = 0.0
+                self.cmd_pub.publish(cmd)
 
-            self.reset_runtime_state()
-            self.set_proximity_enabled(False)
+                time.sleep(0.05)
 
-            # ========================================================
-            # yous: QR ARTIK DOCKING'DE YOK.
-            # Mission QR'i bulur + ortalar, sonra dock'u cagirir.
-            # Docking dogrudan hat takibine gecer.
-            # ========================================================
-
-            # ========================================================
-            # LINE FOLLOW
-            # ========================================================
-
-            success, message = (
-                self.follow_line(
-                    goal_handle,
-                    operation,
-                )
-            )
-
-            # ========================================================
-            # STOP
-            # ========================================================
-
-            self.stop_robot()
-
-            # ========================================================
-            # SUCCESS
-            # ========================================================
-
-            if success:
-
-                self.get_logger().info(
-                    "================================================"
-                )
-
-                self.get_logger().info(
-                    f"DOCK SUCCESS | "
-                    f"{message}"
-                )
-
-                self.get_logger().info(
-                    "================================================"
-                )
-
-                goal_handle.succeed()
-
-                return Dock.Result(
-                    success=True,
-                    message=message,
-                )
-
-            # ========================================================
-            # CANCEL
-            # ========================================================
-
-            if goal_handle.is_cancel_requested:
-
-                goal_handle.canceled()
-
-                return Dock.Result(
-                    success=False,
-                    message="cancelled",
-                )
-
-            # ========================================================
-            # FAILURE
-            # ========================================================
-
-            self.get_logger().error(
-                f"DOCK FAILURE | "
-                f"{message}"
-            )
-
-            goal_handle.abort()
-
-            return Dock.Result(
-                success=False,
-                message=message,
-            )
-
-        except Exception as exc:
-
-            self.stop_robot()
-            self.set_proximity_enabled(False)
-
-            self.get_logger().error(
-                f"DOCKING EXCEPTION: {exc}"
-            )
-
-            if goal_handle.is_cancel_requested:
-
-                goal_handle.canceled()
-
-                return Dock.Result(
-                    success=False,
-                    message="cancelled",
-                )
-
-            goal_handle.abort()
-
-            return Dock.Result(
-                success=False,
-                message=str(exc),
-            )
+            return False, "ROS shutdown"
 
         finally:
-
-            self.stop_robot()
-            self.set_proximity_enabled(False)
-
             with self.lock:
+                self.active = False
+            self.stop_robot()
 
+    # ==================================================
+    # EXECUTE
+    # ==================================================
+
+    def execute_callback(self, goal_handle):
+        operation = str(goal_handle.request.operation).strip().lower()
+
+        try:
+            self.get_logger().info("========================================")
+            self.get_logger().info(
+                f"DOCK START | station={goal_handle.request.station_id} | "
+                f"op={operation}"
+            )
+
+            if operation not in ("pickup", "dropoff"):
+                goal_handle.abort()
+                return Dock.Result(
+                    success=False,
+                    message=f"unknown operation: {operation}",
+                )
+
+            # Pickup: mevcut on kamera line-follow + MZ80 mantigi.
+            # Dropoff: geri kamera line-follow + 70cm + 180 derece donus.
+            if operation == "dropoff":
+                success, message = self.follow_reverse_line(goal_handle)
+                if success:
+                    success, message = self.rotate_dropoff_180(goal_handle)
+            else:
+                success, message = self.follow_line(goal_handle, operation)
+
+            if success:
+                self.get_logger().info(f"DOCK SUCCESS | {message}")
+                goal_handle.succeed()
+                return Dock.Result(success=True, message=message)
+
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
+                return Dock.Result(success=False, message="cancelled")
+
+            self.get_logger().error(f"DOCK FAILURE | {message}")
+            goal_handle.abort()
+            return Dock.Result(success=False, message=message)
+
+        except Exception as exc:
+            self.get_logger().error(f"DOCKING EXCEPTION: {exc}")
+            goal_handle.abort()
+            return Dock.Result(success=False, message=str(exc))
+
+        finally:
+            self.stop_robot()
+            with self.lock:
                 self.action_running = False
-
-                self.qr_detected = False
-                self.qr_text = ""
-
-                self.proximity_detected = False
-
-    # ================================================================
-    # DESTROY
-    # ================================================================
+                self.active = False
+                self.mz80_armed = False
+                self.mz80_detected = False
 
     def destroy_node(self):
-
         self.stop_robot()
-        self.set_proximity_enabled(False)
-
         super().destroy_node()
 
 
-# ====================================================================
-# MAIN
-# ====================================================================
-
 def main(args=None):
-
     rclpy.init(args=args)
-
     node = DockingNode()
-
-    executor = MultiThreadedExecutor(
-        num_threads=4
-    )
-
+    executor = MultiThreadedExecutor(num_threads=4)
     executor.add_node(node)
 
     try:
-
         executor.spin()
-
     except KeyboardInterrupt:
-
         pass
-
     finally:
-
         node.stop_robot()
-
         executor.shutdown()
-
         node.destroy_node()
-
         if rclpy.ok():
-
             rclpy.shutdown()
 
 

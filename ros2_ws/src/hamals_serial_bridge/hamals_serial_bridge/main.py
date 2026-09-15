@@ -147,7 +147,7 @@ class SerialBridgeNode(Node):
         )
 
         # =================================================
-        # E18-D80NK OBSTACLE SENSOR
+        # MZ80 PROXIMITY SENSOR
         # =================================================
 
         self.obstacle_pub = self.create_publisher(
@@ -195,7 +195,7 @@ class SerialBridgeNode(Node):
         )
 
         self.get_logger().info(
-            f"Obstacle topic: {self.cfg.obstacle_topic}"
+            f"MZ80 topic: {self.cfg.obstacle_topic}"
         )
 
     # =====================================================
@@ -657,7 +657,7 @@ class SerialBridgeNode(Node):
             )
 
         # =================================================
-        # E18-D80NK
+        # MZ80
         # =================================================
 
         elif msg_type == 'obstacle':

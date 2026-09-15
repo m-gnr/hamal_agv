@@ -15,6 +15,7 @@ def generate_launch_description():
     map_yaml_file = LaunchConfiguration('map')
 
     pkg_share = get_package_share_directory('hamals_navigation')
+    slam_share = get_package_share_directory('hamals_slam')
     nav2_params_default = os.path.join(pkg_share, 'config', 'nav2', 'nav2_params.yaml')
     nav2_bringup_share = get_package_share_directory('nav2_bringup')
 
@@ -23,10 +24,10 @@ def generate_launch_description():
         DeclareLaunchArgument('nav2_params_file', default_value=nav2_params_default),
         DeclareLaunchArgument('autostart', default_value='true'),
         DeclareLaunchArgument(
-       'map',
-    default_value='/ros2_ws/src/hamals_slam/maps/qr_test.yaml',
-    description='Full path to map yaml file.'
-),
+            'map',
+            default_value=os.path.join(slam_share, 'maps', 'map.yaml'),
+            description='Full path to map yaml file.'
+        ),
     ]
 
     nav2_localization = IncludeLaunchDescription(

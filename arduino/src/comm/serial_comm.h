@@ -27,6 +27,10 @@ public:
     void sendEnc(uint32_t t_us,
                  int32_t dl,
                  int32_t dr);
+                 
+    void sendObstacle(uint32_t t_us, bool detected);
+
+    void sendSafety(uint32_t t_us, bool estop, bool manual);
 
     // $IMU,t_us,gz,ax,ay,az*CS\n
     void sendImu(uint32_t t_us,

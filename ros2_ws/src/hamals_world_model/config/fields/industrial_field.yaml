@@ -2,148 +2,161 @@ schema_version: 1
 frame_id: map
 map: package://hamals_slam/maps/map.yaml
 
+# ============================================================
+# Yeni saha yapisi
+#   - D5, D6 KALDIRILDI. D4 = tum B'lerin (B1/B2/B3) ortak dallanma
+#     dugumu VE KAPI2 donus dugumu.
+#   - Yon: TF'ten aldigin yaw_deg'i dogrudan yaz (robotu o noktada
+#     dogru yone bakacak sekilde durdurup tf2_echo ile oku).
+#   - YUKLU giderken kod otomatik 180 ekler (reverse_when_loaded),
+#     RPP geri surer. Sen sadece robotun DURUS yonunu yaz.
+#   - Asagidaki tum sayilar SAHTE (placeholder). # <<< isaretli
+#     yerleri gercek TF degerlerinle degistir.
+# ============================================================
+
 stations:
   A1:
     type: pickup
     approach_node: A1_APPROACH
-    expected_qr: ALIM1   # yous: resmi QR metni
+    expected_qr: ALIM1
     docking_profile: pickup_default
     zone:
       frame_id: map
-      vertices:
-        - {x: 0.5, y: -0.2}
-        - {x: 1.3, y: -0.2}
-        - {x: 1.3, y: -1.9}
-        - {x: 0.5, y: -1.9}
-    target_pose:   {x: 0.886, y: -1.566, yaw_deg: -91.8}
-    approach_pose: {x: 1.006, y: -0.339, yaw_deg: -85.9}
-    exit_pose:     {x: 1.006, y: -0.339, yaw_deg: 94.1}
+      vertices:                       # valid placeholder polygon around the pickup point
+        - {x: 2.70, y: -1.90}
+        - {x: 3.30, y: -1.90}
+        - {x: 3.30, y: -1.30}
+        - {x: 2.70, y: -1.30}
+    target_pose:   {x: 2.998, y: -1.606, yaw_deg: -29.158}   # <<< yuk alma noktasi
+    approach_pose: {x: 0.852, y: -1.246, yaw_deg: -120.110}   # <<< = A1_APPROACH
+    exit_pose:     {x: 0.000, y: 0.000, yaw_deg: 0.0}   # <<< cikis
 
   A2:
     type: pickup
     approach_node: A2_APPROACH
-    expected_qr: ALIM2   # yous: resmi QR metni
+    expected_qr: ALIM2
     docking_profile: pickup_default
     zone:
       frame_id: map
-      vertices:
-        - {x: 9.0, y: 9.0}
-        - {x: 10.0, y: 9.0}
-        - {x: 10.0, y: 10.0}
-        - {x: 9.0, y: 10.0}
-    target_pose:   {x: 9.5, y: 9.5, yaw_deg: 0.0}
-    approach_pose: {x: 9.5, y: 9.5, yaw_deg: 0.0}
-    exit_pose:     {x: 9.5, y: 9.5, yaw_deg: 0.0}
+      vertices:                       # valid placeholder polygon around the pickup point
+        - {x: 2.70, y: -1.90}
+        - {x: 3.30, y: -1.90}
+        - {x: 3.30, y: -1.30}
+        - {x: 2.70, y: -1.30}
+    target_pose:   {x: 2.998, y: -1.606, yaw_deg: -29.158}   # <<<
+    approach_pose: {x: 0.603, y: -1.769, yaw_deg: -120.356}   # <<<
+    exit_pose:     {x: 0.000, y: 0.000, yaw_deg: 0.0}   # <<<
 
   A3:
     type: pickup
     approach_node: A3_APPROACH
-    expected_qr: ALIM3   # yous: resmi QR metni
+    expected_qr: ALIM3
     docking_profile: pickup_default
     zone:
       frame_id: map
-      vertices:
-        - {x: 9.0, y: 11.0}
-        - {x: 10.0, y: 11.0}
-        - {x: 10.0, y: 12.0}
-        - {x: 9.0, y: 12.0}
-    target_pose:   {x: 9.5, y: 11.5, yaw_deg: 0.0}
-    approach_pose: {x: 9.5, y: 11.5, yaw_deg: 0.0}
-    exit_pose:     {x: 9.5, y: 11.5, yaw_deg: 0.0}
+      vertices:                       # valid placeholder polygon around the pickup point
+        - {x: 2.10, y: -3.10}
+        - {x: 2.60, y: -3.10}
+        - {x: 2.60, y: -2.40}
+        - {x: 2.10, y: -2.40}
+    target_pose:   {x: 2.326, y: -2.787, yaw_deg: -29.158}   # <<<
+    approach_pose: {x: 0.357, y: -1.972, yaw_deg: -120.231}   # <<<
+    exit_pose:     {x: 0.000, y: 0.000, yaw_deg: 0.0}   # <<<
 
   B1:
     type: dropoff
     approach_node: B1_APPROACH
-    expected_qr: BIRAK1   # yous: resmi QR metni
+    expected_qr: BIRAK1
     docking_profile: dropoff_default
     zone:
       frame_id: map
-      vertices:
-        - {x: -1.7, y: -0.7}
-        - {x: -3.0, y: -0.7}
-        - {x: -3.0, y: -1.4}
-        - {x: -1.7, y: -1.4}
-    target_pose:   {x: -2.573, y: -1.042, yaw_deg: 177.5}
-    approach_pose: {x: -2.019, y: -1.026, yaw_deg: -178.5}
-    exit_pose:     {x: -2.019, y: -1.026, yaw_deg: 1.5}
+      vertices:                       # logical polygon near D4 / door-return branch
+        - {x: -0.70, y: -3.80}
+        - {x: -0.00, y: -3.80}
+        - {x: -0.00, y: -3.10}
+        - {x: -0.70, y: -3.10}
+    target_pose:   {x: -0.340, y: -3.420, yaw_deg: -121.0}   # <<< yuk birakma (B1 orta noktasi)
+    approach_pose: {x: -0.270, y: -3.320, yaw_deg: -121.0}   # <<< = B1_APPROACH
+    exit_pose:     {x: 0.000, y: 0.000, yaw_deg: 0.0}   # <<<
 
   B2:
     type: dropoff
     approach_node: B2_APPROACH
-    expected_qr: BIRAK2   # yous: resmi QR metni
+    expected_qr: BIRAK2
     docking_profile: dropoff_default
     zone:
       frame_id: map
-      vertices:
-        - {x: 11.0, y: 9.0}
-        - {x: 12.0, y: 9.0}
-        - {x: 12.0, y: 10.0}
-        - {x: 11.0, y: 10.0}
-    target_pose:   {x: 11.5, y: 9.5, yaw_deg: 0.0}
-    approach_pose: {x: 11.5, y: 9.5, yaw_deg: 0.0}
-    exit_pose:     {x: 11.5, y: 9.5, yaw_deg: 0.0}
+      vertices:                       # logical polygon around B2 approach point
+        - {x: -0.80, y: -3.80}
+        - {x: 0.00, y: -3.80}
+        - {x: 0.00, y: -3.00}
+        - {x: -0.80, y: -3.00}
+    target_pose:   {x: -0.435, y: -3.407, yaw_deg: 145.995}   # <<< B2 drop point
+    approach_pose: {x: -0.435, y: -3.407, yaw_deg: 145.995}   # <<<
+    exit_pose:     {x: 0.000, y: 0.000, yaw_deg: 0.0}   # <<<
 
   B3:
     type: dropoff
     approach_node: B3_APPROACH
-    expected_qr: BIRAK3   # yous: resmi QR metni
+    expected_qr: BIRAK3
     docking_profile: dropoff_default
     zone:
       frame_id: map
-      vertices:
-        - {x: 11.0, y: 11.0}
-        - {x: 12.0, y: 11.0}
-        - {x: 12.0, y: 12.0}
-        - {x: 11.0, y: 12.0}
-    target_pose:   {x: 11.5, y: 11.5, yaw_deg: 0.0}
-    approach_pose: {x: 11.5, y: 11.5, yaw_deg: 0.0}
-    exit_pose:     {x: 11.5, y: 11.5, yaw_deg: 0.0}
+      vertices:                       # logical polygon around B3 approach point
+        - {x: -0.40, y: -4.00}
+        - {x: 0.35, y: -4.00}
+        - {x: 0.35, y: -3.20}
+        - {x: -0.40, y: -3.20}
+    target_pose:   {x: -0.029, y: -3.665, yaw_deg: -28.297}   # <<< B3 drop point
+    approach_pose: {x: -0.029, y: -3.665, yaw_deg: -28.297}   # <<<
+    exit_pose:     {x: 0.000, y: 0.000, yaw_deg: 0.0}   # <<<
 
-qr_markers:   # yous: resmi QR metinleri (ek sartname)
-  ALIM1: {station: A1}
-  ALIM2: {station: A2}
-  ALIM3: {station: A3}
-  KAPI1: {purpose: door_outbound}
-  KAPI2: {purpose: door_return}
-  BIRAK3: {station: B3}
-  BIRAK2: {station: B2}
+qr_markers:
+  BASLA:  {purpose: start}
+  ALIM1:  {station: A1}
+  ALIM2:  {station: A2}
+  ALIM3:  {station: A3}
+  KAPI1:  {purpose: door_outbound}
+  KAPI2:  {purpose: door_return}
   BIRAK1: {station: B1}
+  BIRAK2: {station: B2}
+  BIRAK3: {station: B3}
 
 routes:
+  # Tum pose degerleri SAHTE. TF'ten x,y,yaw_deg yaz. # <<<
   nodes:
-    START:      {pose: {x: 0.979,  y: 1.499,  yaw_deg: -90.0}}
-    D1:         {pose: {x: 0.904,  y: 0.006,  yaw_deg: -92.9}}
-    D2:         {pose: {x: 0.108,  y: -0.068, yaw_deg: -0.8}}
-    D3:         {pose: {x: -0.571, y: -0.057, yaw_deg: -1.7}}
-    DOOR_W:     {pose: {x: -1.177, y: -0.105, yaw_deg: -0.4}}
-    DOOR_E:     {pose: {x: -1.408, y: -0.108, yaw_deg: 1.3}}
-    D4:         {pose: {x: -1.719, y: -0.139, yaw_deg: 6.7}}
-    D5:         {pose: {x: -2.060, y: -1.084, yaw_deg: -95.3}}
-    D6:         {pose: {x: 9.5,    y: 11.5,   yaw_deg: 0.0}}
-    A1_APPROACH: {pose: {x: 1.006, y: -0.339, yaw_deg: -85.9}}
-    A2_APPROACH: {pose: {x: 9.5,   y: 9.5,    yaw_deg: 0.0}}
-    A3_APPROACH: {pose: {x: 9.5,   y: 11.5,   yaw_deg: 0.0}}
-    B1_APPROACH: {pose: {x: -2.019, y: -1.026, yaw_deg: -178.5}}
-    B2_APPROACH: {pose: {x: 11.5,   y: 9.5,    yaw_deg: 0.0}}
-    B3_APPROACH: {pose: {x: 11.5,   y: 11.5,   yaw_deg: 0.0}}
+    START:       {pose: {x: -1.545, y: -1.389, yaw_deg: 59.780}} # <<< baslangic (q1/BASLA onunde)
+    D1:          {pose: {x: -0.771, y: -0.060, yaw_deg: 60.758}}  # <<< A1 oncesi (A1 retry)
+    D2:          {pose: {x: -0.184, y: -0.410, yaw_deg: -29.618}}  # <<< A2 oncesi (A2 retry)
+    D3:         {pose: {x: 0.346, y: -0.688, yaw_deg: -31.076}} # <<< A3 oncesi + KAPI1 retry
+    DOOR_W:     {pose: {x: 0.640, y: -0.600, yaw_deg: -32.393}}  # <<< kapi bati (KAPI1)
+    DOOR_E:      {pose: {x: 1.947, y: -1.326, yaw_deg: -32.109}}  # <<< kapi dogu (KAPI2)
+    D4:         {pose: {x: 2.106, y: -1.419, yaw_deg: -33.702}}   # <<< B1/B2/B3 ORTAK dal + KAPI2 retry
+    A1_APPROACH: {pose: {x: -0.573, y: 0.414, yaw_deg: 55.638}}  # <<< A1 yaklasim (ALIM1 onu)
+    A2_APPROACH: {pose: {x: 0.066, y: -0.050, yaw_deg: 60.371}}  # <<< A2 yaklasim
+    A3_APPROACH: {pose: {x: 0.773, y: -0.388, yaw_deg: 65.306}}  # <<< A3 yaklasim
+    B1_APPROACH: {pose: {x: 2.159, y: -1.110, yaw_deg: 60.830}}  # <<< B1 yaklasim
+    B2_APPROACH: {pose: {x: 2.132, y: -1.440, yaw_deg: -34.155}}   # <<< B2 yaklasim
+    B3_APPROACH: {pose: {x: 2.163, y: -1.507, yaw_deg: -131.001}}  # <<< B3 yaklasim
 
   edges:
+    # --- ana hat (bati tarafi, A'lar) ---
     - {from: START,  to: D1,     bidirectional: true, cost: 1.0}
     - {from: D1,     to: D2,     bidirectional: true, cost: 1.0}
     - {from: D2,     to: D3,     bidirectional: true, cost: 1.0}
     - {from: D3,     to: DOOR_W, bidirectional: true, cost: 1.0}
+    # --- kapi ---
     - {from: DOOR_W, to: DOOR_E, bidirectional: true, cost: 1.0, door_controlled: MAIN_DOOR}
+    # --- kapi sonrasi ORTAK dugum D4 ---
     - {from: DOOR_E, to: D4,     bidirectional: true, cost: 1.0}
-    - {from: D4,     to: D5,     bidirectional: true, cost: 1.0}
+    # --- A yaklasimlari ---
     - {from: D1,     to: A1_APPROACH, bidirectional: true, cost: 1.0}
     - {from: D2,     to: A2_APPROACH, bidirectional: true, cost: 1.0}
     - {from: D3,     to: A3_APPROACH, bidirectional: true, cost: 1.0}
-    - {from: D5,     to: B1_APPROACH, bidirectional: true, cost: 0.1}
+    # --- Tum B'ler D4'ten dallaniyor (D5/D6 yok) ---
+    - {from: D4,     to: B1_APPROACH, bidirectional: true, cost: 0.1}
     - {from: D4,     to: B2_APPROACH, bidirectional: true, cost: 0.1}
-    - {from: D6,     to: B3_APPROACH, bidirectional: true, cost: 0.1}
-    - {from: D4,     to: D6,          bidirectional: true, cost: 1.0}
-    - {from: D4,     to: A2_APPROACH, bidirectional: true, cost: 1.0}
-    - {from: D4,     to: A3_APPROACH, bidirectional: true, cost: 1.0}
+    - {from: D4,     to: B3_APPROACH, bidirectional: true, cost: 0.1}
 
 doors:
   MAIN_DOOR:
@@ -152,5 +165,5 @@ doors:
     west_node: DOOR_W
     east_node: DOOR_E
     request_pose:
-      outbound: {x: -1.177, y: -0.105, yaw_deg: -0.4}
-      return:   {x: -1.408, y: -0.108, yaw_deg: 180.0}
+      outbound: {x: 0.206, y: -2.510, yaw_deg: -120.235}   # <<< kapi istek pozu (gidis)
+      return:   {x: -0.257, y: -3.299, yaw_deg: -121.547}   # <<< kapi istek pozu (donus)
