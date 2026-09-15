@@ -7,7 +7,7 @@
         <div class="lock-title">Manuel Kontrol Kilitli</div>
         <div class="lock-msg">
           Fiziksel anahtar <strong>MANUEL</strong> konumuna alınmalıdır.<br>
-          Mevcut: <span class="lock-mode">{{ (s.switch?.mode || 'OTOMATİK').toUpperCase() }}</span>
+          Mevcut: <span class="lock-mode">{{ (s.switch?.mode || 'UNKNOWN').toUpperCase() }}</span>
         </div>
         <button v-if="isMock" class="debug-unlock-btn" @click="toggleSwitch">
           DEBUG: Anahtarı MANUEL'e Al
@@ -40,17 +40,18 @@
 
         <div class="dpad-container">
           <div class="dpad">
-            <button class="dpad-btn dpad-up"    @click="cmdLinear(1)"   :disabled="isLocked"><ArrowUp    :size="22" /></button>
-            <button class="dpad-btn dpad-left"  @click="cmdAngular(1)"  :disabled="isLocked"><ArrowLeft  :size="22" /></button>
+            <button class="dpad-btn dpad-up"    @pointerdown.prevent="cmdLinear(1)" @pointerup="stopCmd" @pointercancel="stopCmd" @pointerleave="stopCmd"   :disabled="isLocked"><ArrowUp    :size="22" /></button>
+            <button class="dpad-btn dpad-left"  @pointerdown.prevent="cmdAngular(1)" @pointerup="stopCmd" @pointercancel="stopCmd" @pointerleave="stopCmd"  :disabled="isLocked"><ArrowLeft  :size="22" /></button>
             <button class="dpad-btn dpad-stop"  @click="stopCmd"        :disabled="isLocked">
               <Square :size="16" /><span class="stop-label">DUR</span>
             </button>
-            <button class="dpad-btn dpad-right" @click="cmdAngular(-1)" :disabled="isLocked"><ArrowRight :size="22" /></button>
-            <button class="dpad-btn dpad-down"  @click="cmdLinear(-1)"  :disabled="isLocked"><ArrowDown  :size="22" /></button>
+            <button class="dpad-btn dpad-right" @pointerdown.prevent="cmdAngular(-1)" @pointerup="stopCmd" @pointercancel="stopCmd" @pointerleave="stopCmd" :disabled="isLocked"><ArrowRight :size="22" /></button>
+            <button class="dpad-btn dpad-down"  @pointerdown.prevent="cmdLinear(-1)" @pointerup="stopCmd" @pointercancel="stopCmd" @pointerleave="stopCmd"  :disabled="isLocked"><ArrowDown  :size="22" /></button>
           </div>
         </div>
 
-        <div class="vel-display">
+        <div class="vel-display" aria-label="İstenen hız; robot feedback değildir">
+          <span>Komut:</span>
           <span>v: <strong>{{ curLinear.toFixed(2) }}</strong> m/s</span>
           <span>ω: <strong>{{ curAngular.toFixed(2) }}</strong> rad/s</span>
         </div>
@@ -63,16 +64,16 @@
         <div class="lift-layout">
           <!-- Butonlar -->
           <div class="lift-buttons">
-            <button class="lift-btn lift-up" @click="sendLift('up')" :disabled="isLocked">
+            <button class="lift-btn lift-up" @click="sendLift('up')" :disabled="isLocked || (!isMock && !forkFresh)">
               <MoveUp :size="18" /> KALDIR
             </button>
-            <button class="lift-btn lift-down" @click="sendLift('down')" :disabled="isLocked">
+            <button class="lift-btn lift-down" @click="sendLift('down')" :disabled="isLocked || (!isMock && !forkFresh)">
               <MoveDown :size="18" /> İNDİR
             </button>
           </div>
 
           <!-- 3A: Yükseklik barı -->
-          <div class="height-gauge">
+          <div v-if="isMock" class="height-gauge">
             <div class="height-bar-track">
               <div
                 class="height-bar-fill"
@@ -88,12 +89,19 @@
           </div>
         </div>
 
-        <div class="lift-status-row">
+        <div v-if="isMock" class="lift-status-row">
           <span class="lift-status-label">Yükseklik</span>
           <div class="lift-status-bar-wrap">
             <div class="lift-status-bar" :style="{ width: liftPct + '%' }" :class="liftMoving ? 'bar-moving' : ''" />
           </div>
           <span class="lift-status-pct">{{ liftPct }}%</span>
+        </div>
+        <div v-if="!isMock" class="fork-feedback">
+          <button class="lift-btn" @click="sendLift('stop')" :disabled="isLocked">Çatal STOP</button>
+          <p v-for="key in ['state', 'upper_limit', 'lower_limit', 'is_moving', 'last_command', 'error_code']" :key="key">
+            {{ key }}: {{ forkFresh ? (s.fork?.[key] ?? 'unknown') : 'stale / unknown' }}
+          </p>
+          <p>Yükseklik yüzdesi ölçülmüyor. state: 0 idle, 1 up, 2 down, 3 top, 4 bottom, 5 error.</p>
         </div>
       </Card>
 
@@ -102,25 +110,19 @@
         <template #header>
           <div class="cam-header">
             <SectionTitle :icon="CameraIcon">Aktif Kamera</SectionTitle>
-            <div class="cam-toggle">
+            <div v-if="isMock" class="cam-toggle">
               <button :class="['cam-btn', s.cameras?.active !== 'back' ? 'cam-active' : '']">ÖN</button>
               <button :class="['cam-btn', s.cameras?.active === 'back'  ? 'cam-active' : '']">ARKA</button>
             </div>
           </div>
         </template>
         <div class="stream-area">
-          <img
-            v-if="activeCamUrl" :src="activeCamUrl" class="cam-img"
-            onerror="this.style.display='none'" alt="Kamera akışı"
-          />
-          <div v-else class="no-stream">
-            <CameraOff :size="28" />
-            <span>Kamera akışı yok</span>
-          </div>
+          <CameraStream v-if="!isMock" :url="s.cameras?.front_url" :fresh="freshness(s, '/camera/image_raw') === 'live'" />
+          <div v-else class="no-stream"><CameraOff :size="28" /> Mock kamera</div>
         </div>
         <div class="speed-big-section">
           <span class="speed-big-label">Anlık Hız</span>
-          <span class="speed-big-val">{{ (s.pose?.speed || 0).toFixed(2) }} m/s</span>
+          <span class="speed-big-val">{{ isMock ? (s.pose?.speed || 0).toFixed(2) : freshness(s, '/odom') === 'live' ? (s.pose?.speed?.toFixed(2) ?? 'unknown') : 'stale / unknown' }} m/s</span>
         </div>
       </Card>
     </div>
@@ -128,7 +130,10 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { manualAllowed, freshness } from '../composables/liveState.js'
+import { manualControl } from '../composables/manualControl.js'
+import CameraStream from './CameraStream.vue'
 import {
   Lock, Gamepad2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight,
   Square, ArrowUpDown, MoveUp, MoveDown,
@@ -141,7 +146,8 @@ const props = defineProps({ state: Object, isMock: Boolean })
 const emit  = defineEmits(['send-cmd'])
 const s     = computed(() => props.state || {})
 
-const isLocked = computed(() => s.value.switch?.mode !== 'manual')
+const isLocked = computed(() => props.isMock ? s.value.switch?.mode !== 'manual' : !manualAllowed(s.value))
+const forkFresh = computed(() => freshness(s.value, '/fork/state') === 'live')
 
 function toggleSwitch() {
   emit('send-cmd', { type: 'switch_mode', payload: isLocked.value ? 'manual' : 'auto' })
@@ -163,35 +169,43 @@ function decSens() {
   stepAng.value = +Math.max(SENS_MIN * 2, stepLin.value * 2).toFixed(2)
 }
 
-// ── Latched teleop ───────────────────────────────────────────
+// ── Hold-to-run teleop ───────────────────────────────────────────
 const curLinear  = ref(0)
 const curAngular = ref(0)
 
-function clamp(v, lo, hi) { return Math.min(Math.max(v, lo), hi) }
-
-function sendTeleop() {
-  emit('send-cmd', { type: 'teleop', payload: { linear: curLinear.value, angular: curAngular.value } })
-}
-function cmdLinear(dir) {
-  if (isLocked.value) return
-  curLinear.value = +clamp(curLinear.value + dir * stepLin.value, -1, 1).toFixed(3)
-  sendTeleop()
-}
-function cmdAngular(dir) {
-  if (isLocked.value) return
-  curAngular.value = +clamp(curAngular.value + dir * stepAng.value, -2, 2).toFixed(3)
-  sendTeleop()
-}
+const control = manualControl(() => !isLocked.value, payload => {
+  curLinear.value = payload.linear
+  curAngular.value = payload.angular
+  emit('send-cmd', { type: 'teleop', payload })
+})
+function cmdLinear(dir) { control.start(dir * stepLin.value, 0) }
+function cmdAngular(dir) { control.start(0, dir * stepAng.value) }
 function stopCmd() {
+  control.stop()
   curLinear.value = curAngular.value = 0
-  sendTeleop()
 }
+function hidden() { if (document.hidden) stopCmd() }
+watch(isLocked, locked => { if (locked) stopCmd() }, { flush: 'sync' })
+onMounted(() => {
+  window.addEventListener('pointerup', stopCmd)
+  window.addEventListener('pointercancel', stopCmd)
+  window.addEventListener('blur', stopCmd)
+  document.addEventListener('visibilitychange', hidden)
+})
+onBeforeUnmount(() => {
+  stopCmd()
+  window.removeEventListener('pointerup', stopCmd)
+  window.removeEventListener('pointercancel', stopCmd)
+  window.removeEventListener('blur', stopCmd)
+  document.removeEventListener('visibilitychange', hidden)
+})
 
 // ── Lift ─────────────────────────────────────────────────────
 const liftPct    = computed(() => s.value.lift?.height_pct ?? 0)
 const liftMoving = computed(() => s.value.lift?.moving ?? false)
 
 function sendLift(action) {
+  if (isLocked.value) return
   emit('send-cmd', { type: 'lift', payload: { action } })
 }
 
@@ -203,6 +217,8 @@ const activeCamUrl = computed(() => {
 </script>
 
 <style scoped>
+.dpad-btn { touch-action: none; user-select: none; }
+.fork-feedback { color: var(--text-dim); font-size: 12px; overflow: auto; }
 .tab-manual { position: relative; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
 .manual-content {
   display: grid;

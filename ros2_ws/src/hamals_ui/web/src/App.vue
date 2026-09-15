@@ -21,13 +21,14 @@
           <button
             :class="['estop-btn', state?.estop?.active ? 'estop-on' : '']"
             @click="sendCmd({ type: 'estop' })"
-            title="Yazılımsal acil durdurma"
+            :disabled="!isMock"
+            :title="isMock ? 'Mock E-STOP' : 'Physical E-STOP only; firmware feedback not implemented'"
           >
             <StopCircle :size="16" />
-            <span>E-STOP</span>
+            <span>{{ isMock ? 'E-STOP (MOCK)' : 'Physical E-STOP only' }}</span>
           </button>
           <button
-            v-if="state?.estop?.active"
+            v-if="isMock && state?.estop?.active"
             class="estop-ack-btn"
             @click="sendCmd({ type: 'estop_ack' })"
           >
@@ -50,6 +51,8 @@
       <SidebarNav :active="activeTab" @change="activeTab = $event" />
 
       <main class="main-content">
+        <LivePanel v-if="!isMock" :state="state" :tab="activeTab" @send-cmd="sendCmd" />
+        <template v-else>
         <TabDashboard v-if="activeTab === 'dashboard'" :state="state" @send-cmd="sendCmd" />
         <TabMap       v-if="activeTab === 'map'"       :state="state" @send-cmd="sendCmd" />
         <TabMission   v-if="activeTab === 'mission'"   :state="state" :is-mock="isMock" @send-cmd="sendCmd" />
@@ -57,6 +60,7 @@
         <TabCamera    v-if="activeTab === 'camera'"    :state="state" />
         <TabErrors    v-if="activeTab === 'errors'"    :state="state" />
         <TabSettings  v-if="activeTab === 'settings'"  :state="state" />
+        </template>
       </main>
     </div>
   </div>
@@ -67,6 +71,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useMockData } from './composables/useMockData.js'
 import { useRosbridge } from './composables/useRosbridge.js'
 import { Forklift, AlertTriangle, StopCircle } from 'lucide-vue-next'
+import LivePanel from './components/LivePanel.vue'
 import TopBar       from './components/TopBar.vue'
 import SidebarNav   from './components/SidebarNav.vue'
 import TabDashboard from './components/TabDashboard.vue'
@@ -79,8 +84,8 @@ import TabSettings  from './components/TabSettings.vue'
 
 // ── Config ──────────────────────────────────────────────────
 // Change to 'rosbridge' for live robot; 'mock' for offline dev
-const DATA_SOURCE = import.meta.env.VITE_DATA_SOURCE || 'mock'
-const ROSBRIDGE_URL = import.meta.env.VITE_ROSBRIDGE_URL || 'ws://robot:9090'
+const DATA_SOURCE = import.meta.env.VITE_DATA_SOURCE || 'rosbridge'
+const ROSBRIDGE_URL = import.meta.env.VITE_ROSBRIDGE_URL || `ws://${window.location.hostname}:9090`
 
 const TABS = [
   { id: 'dashboard', title: 'Genel Durum', icon: 'LayoutDashboard' },
@@ -115,7 +120,7 @@ const state = computed(() =>
 )
 
 const isMock = computed(() =>
-  DATA_SOURCE === 'mock' || state.value?.meta?.mode === 'mock'
+  DATA_SOURCE === 'mock'
 )
 
 // ── Command dispatcher ───────────────────────────────────────
@@ -124,13 +129,14 @@ function sendCmd(cmd) {
     mock.handleCmd(cmd)
     return
   }
-  bridge.publish('/ui/cmd', 'std_msgs/String', { data: JSON.stringify(cmd) })
+  bridge.sendCmd(cmd)
 }
 
 onMounted(() => {
   if (DATA_SOURCE === 'mock') mock.start()
   else bridge.connect()
 })
+onUnmounted(() => { bridge.disconnect(); mock.stop() })
 </script>
 
 <style>

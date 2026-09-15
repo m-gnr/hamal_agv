@@ -1,5 +1,11 @@
 <template>
-  <div class="stat-cells">
+  <div v-if="s.meta?.mode === 'live'" class="stat-cells">
+    <div v-for="cell in liveCells" :key="cell.name" class="stat-cell">
+      <span class="stat-cell__label">{{ cell.name }}</span>
+      <span :class="'live-' + (cell.tone || 'unknown')">{{ cell.value }}</span>
+    </div>
+  </div>
+  <div v-else class="stat-cells">
     <!-- Robot bağlantısı -->
     <div class="stat-cell">
       <span class="stat-cell__label">ROBOT</span>
@@ -80,11 +86,27 @@
 
 <script setup>
 import { computed } from 'vue'
+import { freshness, safetySummary } from '../composables/liveState.js'
 import { ToggleLeft, ToggleRight, Power } from 'lucide-vue-next'
 
 const props = defineProps({ state: Object })
 defineEmits(['send-cmd'])
 const s = computed(() => props.state || {})
+
+const liveCells = computed(() => {
+  const state = s.value
+  const modeFresh = freshness(state, '/switch/mode', 1)
+  const missionFresh = freshness(state, '/mission/state')
+  const safety = safetySummary(state)
+  return [
+    { name: 'ROS', value: !state.connection?.rosbridge ? 'Disconnected' : state.meta?.mismatch ? 'MOCK backend rejected' : state.meta?.stale ? 'Stale' : 'Connected', tone: state.meta?.stale ? 'warn' : 'healthy' },
+    { name: 'MOD · FİZİKSEL', value: modeFresh === 'live' ? state.switch?.mode : modeFresh },
+    { name: 'GÖREV', value: missionFresh === 'live' ? state.mission?.fsm : missionFresh },
+    { name: 'GÜVENLİK', value: safety.label, tone: safety.tone },
+    { name: 'SÜRE', value: missionFresh === 'live' ? fmtTime(state.mission?.elapsed_s) : '--:--' },
+    { name: 'BATARYA', value: 'N/A' },
+  ]
+})
 
 const FSM_TR = {
   idle: 'Boşta', task_processing: 'İşleniyor',
@@ -120,6 +142,10 @@ function fmtTime(sec) {
 </script>
 
 <style scoped>
+.live-unknown { color: var(--text-dim); }
+.live-warn { color: var(--amber); }
+.live-danger { color: var(--red); }
+.live-healthy { color: var(--green); }
 .stat-cells {
   display: flex;
   align-items: stretch;

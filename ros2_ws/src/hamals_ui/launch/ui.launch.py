@@ -24,6 +24,7 @@ from launch.actions import (
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
@@ -41,7 +42,7 @@ def generate_launch_description():
     # ── Launch arguments ─────────────────────────────────────
     mode_arg = DeclareLaunchArgument(
         "mode",
-        default_value="mock",
+        default_value="live",
         description="Bridge mode: live | mock"
     )
     rosbridge_port_arg = DeclareLaunchArgument(
@@ -109,7 +110,7 @@ def generate_launch_description():
         name="ui_bridge_node",
         output="screen",
         parameters=[
-            {"mode": mode}
+            {"mode": mode, "vvs_port": ParameterValue(vvs_port, value_type=int)}
         ]
     )
 

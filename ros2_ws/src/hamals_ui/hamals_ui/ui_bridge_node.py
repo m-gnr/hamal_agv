@@ -20,13 +20,17 @@ from ament_index_python.packages import get_package_share_directory
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 from std_msgs.msg import String
-from std_srvs.srv import Trigger
+from rclpy.action import ActionClient
+from hamals_interfaces.action import ExecuteMission
+from hamals_interfaces.msg import ForkCommand
+from hamals_interfaces.srv import PauseMission, ResumeMission
+from rcl_interfaces.srv import GetParameters
 
 
 # ─────────────────────────────────────────────────────────────
 # Default state skeleton — always published, filled by live/mock
 # ─────────────────────────────────────────────────────────────
-def _default_state() -> Dict[str, Any]:
+def _mock_default_state() -> Dict[str, Any]:
     return {
         "meta": {
             "mode": "live",
@@ -89,6 +93,22 @@ def _default_state() -> Dict[str, Any]:
         "messages": [],
         "errors": [],
         "logs": []
+    }
+
+
+def _default_state() -> Dict[str, Any]:
+    """Live contract: absent telemetry is unknown, never a healthy default."""
+    return {
+        "meta": {"mode": "live", "ts": None, "sources": {}},
+        "connection": {"robot": None, "plc": None},
+        "switch": {"mode": "unknown"}, "estop": {"active": None},
+        "battery": {"percent": None, "voltage": None, "status": "unavailable"},
+        "pose": {}, "mission": {"fsm": "unknown", "timer": {}},
+        "nav": {"status": "unknown"}, "safety": {}, "obstacle": {},
+        "plc": {"connected": None}, "fork": {}, "qr": {}, "line": {},
+        "sensors": {}, "cameras": {}, "world_model": {},
+        "nodes": [], "messages": [], "errors": [], "logs": [],
+        "controls": {}, "command_result": None,
     }
 
 
@@ -177,7 +197,9 @@ class UIBridgeNode(Node):
         # ROS param 'mode' (launch'tan) verilmişse params.yaml'ı geçersiz kılar
         self.declare_parameter("mode", "")
         _mode_param = self.get_parameter("mode").get_parameter_value().string_value
-        self._mode = _mode_param if _mode_param else self._params.get("mode", "mock")
+        self._mode = _mode_param if _mode_param else self._params.get("mode", "live")
+        if self._mode not in ("live", "mock"):
+            raise ValueError("mode must be live or mock")
         ui_cfg = self._params.get("ui_bridge", {})
         self._publish_hz = float(ui_cfg.get("publish_hz", 10.0))
         self._log_buf = int(ui_cfg.get("log_buffer", 50))
@@ -185,21 +207,18 @@ class UIBridgeNode(Node):
 
         cam_cfg = self._params.get("camera", {})
         vvs_host = cam_cfg.get("web_video_server_host", "robot")
-        vvs_port = cam_cfg.get("web_video_server_port", 8081)
+        self.declare_parameter("vvs_port", cam_cfg.get("web_video_server_port", 8081))
+        vvs_port = self.get_parameter("vvs_port").value
         self._cam_front_url = (
-            f"http://{vvs_host}:{vvs_port}/stream"
-            f"?topic={cam_cfg.get('front_topic', '/camera_front/image_raw')}"
+            f"http://{vvs_host}:{vvs_port}/stream?type=mjpeg"
+            f"&topic={cam_cfg.get('front_topic', '/camera/image_raw')}"
         )
-        self._cam_back_url = (
-            f"http://{vvs_host}:{vvs_port}/stream"
-            f"?topic={cam_cfg.get('back_topic', '/camera_back/image_raw')}"
-        )
-
-        # Live state (always sent)
-        self._state = _default_state()
+        self._cam_back_url = ""
+        self._state = _default_state() if self._mode == "live" else _mock_default_state()
         self._state["meta"]["mode"] = self._mode
         self._state["cameras"]["front_url"] = self._cam_front_url
         self._state["cameras"]["back_url"] = self._cam_back_url
+        self._state["topology"] = _load_yaml(os.path.join(cfg_dir, "topology.yaml"))
 
         # Node list from config
         self._build_nodes_list()
@@ -209,13 +228,19 @@ class UIBridgeNode(Node):
         self._cmd_sub = self.create_subscription(
             String, "/ui/cmd", self._cmd_callback, 10
         )
-        self._mission_start_client = self.create_client(Trigger, "/hamal/start_mission")
-        self._mission_cancel_client = self.create_client(Trigger, "/hamal/cancel_mission")
         self._mission_started_at = None
-
+        self._goal_handle = None
+        self._goal_pending = False
         if self._mode == "live":
+            self._mission_action = ActionClient(self, ExecuteMission, "/mission/execute")
+            self._pause_client = self.create_client(PauseMission, "/mission/pause")
+            self._resume_client = self.create_client(ResumeMission, "/mission/resume")
+            self._fork_pub = self.create_publisher(ForkCommand, "/fork/cmd", 10)
+            plc_node = self._params["network"]["parameter_node"]
+            self._plc_params = self.create_client(GetParameters, plc_node + "/get_parameters")
+            self._plc_params_pending = False
             self._setup_live_subscriptions()
-            self._state["connection"]["robot"] = True
+            self.create_timer(5.0, self._read_plc_config)
         else:
             self._setup_mock()
 
@@ -234,7 +259,7 @@ class UIBridgeNode(Node):
         expected = self._params.get("expected_nodes", [])
         planned = set(self._params.get("planned_nodes", []))
         self._state["nodes"] = [
-            {"name": n, "active": n not in planned}
+            {"name": n, "active": (n not in planned) if self._mode == "mock" else None}
             for n in (expected + list(planned))
         ]
 
@@ -275,7 +300,7 @@ class UIBridgeNode(Node):
 
             if offline_key:
                 self._topic_offline_key[topic] = offline_key
-                _set_nested(self._state, offline_key, False)
+                _set_nested(self._state, offline_key, None)
 
             def make_cb(t=topic, f=fields, ok=offline_key):
                 def cb(msg):
@@ -292,7 +317,7 @@ class UIBridgeNode(Node):
         self.create_timer(5.0, self._update_nodes_live)
 
     def _on_topic(self, topic: str, msg, fields: list, offline_key: str):
-        self._topic_last_seen[topic] = time.time()
+        self._topic_last_seen[topic] = time.monotonic()
         if offline_key:
             _set_nested(self._state, offline_key, True)
 
@@ -317,8 +342,9 @@ class UIBridgeNode(Node):
                 continue
 
             val = _get_nested(msg, msg_field, fmap.get("default"))
-            if val is not None:
-                _set_nested(self._state, state_key, val)
+            if isinstance(val, float) and not math.isfinite(val):
+                val = None
+            _set_nested(self._state, state_key, val)
 
         if topic == "/odom":
             try:
@@ -326,10 +352,35 @@ class UIBridgeNode(Node):
                 siny = 2.0 * (q.w * q.z + q.x * q.y)
                 cosy = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
                 theta = math.degrees(math.atan2(siny, cosy))
-                self._state["pose"]["theta_deg"] = round(theta, 2)
+                self._state["pose"]["theta_deg"] = round(theta, 2) if math.isfinite(theta) else None
             except Exception:
                 pass
 
+        if topic == "/switch/mode":
+            self._state["switch"]["mode"] = msg.data if msg.data in ("manual", "auto") else "unknown"
+        elif topic == "/mission/state":
+            mission = self._state["mission"]
+            mission["fsm"] = {
+                0: "booting", 1: "idle", 2: "executing", 3: "waiting_plc",
+                4: "paused_obstacle", 5: "paused_manual", 6: "error", 7: "emergency_stop",
+            }.get(msg.state, "unknown")
+            mission["phase_normalized"] = msg.phase.lower() if msg.phase else "unknown"
+            mission["timer"] = {"elapsed_s": msg.elapsed_s}
+            self._state["nav"] = {"status": mission["phase_normalized"],
+                                  "current_goal": msg.active_target, "source": "/mission/state"}
+        elif topic == "/plc/state":
+            connected = {0: False, 1: False, 2: True, 3: False}.get(msg.connection_state)
+            self._state["plc"]["connected"] = connected
+            self._state["connection"]["plc"] = connected
+        elif topic == "/scan/obstacle_state":
+            regions = [{"region": r.region, "has_obstacle": r.has_obstacle,
+                        "min_distance": r.min_distance if math.isfinite(r.min_distance) else None}
+                       for r in msg.regions]
+            self._state["obstacle"] = {"regions": regions,
+                                      "active": any(r["has_obstacle"] for r in regions) if regions else None}
+        elif topic == "/qr/detection":
+            if not msg.detected:
+                self._state["qr"] = {"detected": False, "id": None}
         self._state["connection"]["robot"] = True
 
     def _apply_mission_status(self, raw: str):
@@ -392,10 +443,10 @@ class UIBridgeNode(Node):
             _deep_merge(self._state["safety"], data)
 
     def _check_topic_health(self):
-        now = time.time()
+        now = time.monotonic()
         for topic, ok_key in self._topic_offline_key.items():
             last = self._topic_last_seen.get(topic, 0.0)
-            alive = (now - last) < 3.0
+            alive = (now - last) < 3.0 if last else None
             _set_nested(self._state, ok_key, alive)
         any_alive = any(
             (now - t) < 3.0 for t in self._topic_last_seen.values()
@@ -535,6 +586,12 @@ class UIBridgeNode(Node):
             self.get_logger().warn("Received malformed /ui/cmd JSON")
             return
 
+        if not isinstance(cmd, dict):
+            return
+        if self._mode == "live":
+            self._live_command(cmd)
+            return
+
         cmd_type = cmd.get("type", "")
         payload = cmd.get("payload", {})
 
@@ -584,9 +641,9 @@ class UIBridgeNode(Node):
         elif cmd_type == "set_ready":
             self.get_logger().info("CMD: set_ready (no-op: mission_manager not yet present)")
         elif cmd_type == "start_mission":
-            self._call_mission_service(self._mission_start_client, "Görev başlatma")
+            return
         elif cmd_type == "cancel_mission":
-            self._call_mission_service(self._mission_cancel_client, "Görev iptali")
+            return
         elif cmd_type == "mapping":
             self.get_logger().info(f"CMD: mapping action={payload.get('action') if isinstance(payload, dict) else payload}")
         elif cmd_type == "define_route":
@@ -594,27 +651,133 @@ class UIBridgeNode(Node):
         else:
             self.get_logger().warn(f"Unknown /ui/cmd type: {cmd_type}")
 
-    def _call_mission_service(self, client, action: str):
-        if not client.wait_for_service(timeout_sec=0.5):
-            self._state["mission"]["fsm"] = "error"
-            self._state["mission"]["step"] = "Mission server bağlı değil"
-            self.get_logger().warn(f"{action} rejected: service unavailable")
+    def _fresh(self, topic, timeout=3.0):
+        last = self._topic_last_seen.get(topic)
+        return last is not None and time.monotonic() - last < timeout
+
+    def _manual_allowed(self):
+        return self._fresh("/switch/mode", 1.0) and self._state["switch"]["mode"] == "manual"
+
+    def _result(self, command, status, message):
+        self._state["command_result"] = {
+            "command": command, "status": status, "message": message, "ts": time.time()}
+
+    def _live_command(self, cmd):
+        kind, payload = cmd.get("type"), cmd.get("payload", {})
+        if not isinstance(payload, dict):
             return
-        future = client.call_async(Trigger.Request())
+        try:
+            if kind in ("teleop", "lift"):
+                # Browser receipt lease prevents stale/queued /ui/cmd from moving the robot.
+                lease = payload.get("state_ts")
+                if not isinstance(lease, (int, float)) or not 0 <= time.time() - lease < 0.75:
+                    return
+            if kind == "teleop":
+                self._handle_teleop(payload)
+            elif kind == "lift":
+                action = payload.get("action")
+                if not self._manual_allowed() or action not in ("up", "down", "stop"):
+                    return
+                if action != "stop" and not self._fresh("/fork/state"):
+                    return
+                msg = ForkCommand()
+                msg.command = {"stop": ForkCommand.STOP, "up": ForkCommand.UP,
+                               "down": ForkCommand.DOWN}[action]
+                self._fork_pub.publish(msg)
+                self._result(kind, "sent", "Fork command sent; observe /fork/state")
+            elif kind == "start_mission":
+                if self._goal_handle or self._goal_pending:
+                    raise ValueError("UI mission already active/pending")
+                if not self._mission_action.server_is_ready():
+                    raise ValueError("/mission/execute unavailable")
+                if not self._fresh("/switch/mode", 1.0) or self._state["switch"]["mode"] != "auto":
+                    raise ValueError("Fresh physical AUTO mode required")
+                fields = [str(payload.get(k, "")).strip() for k in ("task_id", "pickup_id", "dropoff_id")]
+                if not all(fields):
+                    raise ValueError("task_id, pickup_id and dropoff_id required")
+                goal = ExecuteMission.Goal()
+                goal.task.task_id, goal.task.pickup_id, goal.task.dropoff_id = fields
+                goal.task.source = "ui"
+                goal.task.stamp = self.get_clock().now().to_msg()
+                self._goal_pending = True
+                future = self._mission_action.send_goal_async(goal)
+                future.add_done_callback(self._mission_goal_response)
+                self._result(kind, "pending", "Waiting for action acceptance")
+            elif kind == "cancel_mission":
+                if self._goal_handle is None:
+                    raise ValueError("Only a mission started by this bridge can be canceled")
+                def canceled(future):
+                    try:
+                        result = future.result()
+                        ok = bool(result.goals_canceling)
+                        self._result(kind, "accepted" if ok else "rejected", "Action cancel response")
+                    except Exception as exc:
+                        self._result(kind, "error", str(exc))
+                self._goal_handle.cancel_goal_async().add_done_callback(canceled)
+            elif kind in ("pause_mission", "resume_mission"):
+                client = self._pause_client if kind == "pause_mission" else self._resume_client
+                if not client.service_is_ready():
+                    raise ValueError("Mission service unavailable")
+                request = PauseMission.Request() if kind == "pause_mission" else ResumeMission.Request()
+                if kind == "pause_mission":
+                    request.reason = str(payload.get("reason", "operator pause"))
+                else:
+                    request.operator_id = str(payload.get("operator_id", "ui"))
+                def finished(future):
+                    try:
+                        response = future.result()
+                        self._result(kind, "accepted" if response.success else "rejected", response.message)
+                    except Exception as exc:
+                        self._result(kind, "error", str(exc))
+                client.call_async(request).add_done_callback(finished)
+            else:
+                self._result(str(kind), "unavailable", "No live command interface")
+        except (ValueError, TypeError, OverflowError) as exc:
+            self._result(str(kind), "rejected", str(exc))
 
-        def finished(result):
+    def _mission_goal_response(self, future):
+        self._goal_pending = False
+        try:
+            handle = future.result()
+            if not handle.accepted:
+                self._result("start_mission", "rejected", "Mission server rejected goal")
+                return
+            self._goal_handle = handle
+            self._result("start_mission", "accepted", "Mission goal accepted")
+            handle.get_result_async().add_done_callback(self._mission_finished)
+        except Exception as exc:
+            self._result("start_mission", "error", str(exc))
+
+    def _mission_finished(self, future):
+        self._goal_handle = None
+        try:
+            response = future.result().result
+            self._result("mission", "success" if response.success else "failed", response.message)
+        except Exception as exc:
+            self._result("mission", "error", str(exc))
+
+    def _read_plc_config(self):
+        if self._plc_params_pending or not self._plc_params.service_is_ready():
+            return
+        self._plc_params_pending = True
+        request = GetParameters.Request(names=["transport", "plc_ip", "plc_port"])
+        def finished(future):
+            self._plc_params_pending = False
             try:
-                response = result.result()
-                if not response.success:
-                    self._state["mission"]["fsm"] = "error"
-                    self._state["mission"]["step"] = response.message or f"{action} başarısız"
+                values = future.result().values
+                self._state["plc"]["config"] = {
+                    "transport": values[0].string_value if values[0].type == 4 else None,
+                    "ip": values[1].string_value if values[1].type == 4 else None,
+                    "port": values[2].integer_value if values[2].type == 2 else None,
+                    "read_at": time.time(),
+                }
             except Exception as exc:
-                self._state["mission"]["fsm"] = "error"
-                self._state["mission"]["step"] = f"{action} hatası: {exc}"
-
-        future.add_done_callback(finished)
+                self.get_logger().warning(f"PLC parameters unavailable: {exc}")
+        self._plc_params.call_async(request).add_done_callback(finished)
 
     def _handle_estop(self):
+        if self._mode != "mock":
+            return
         self._state["estop"]["active"] = True
         self._state["mission"]["fsm"] = "emergency_stop"
         self._state["pose"]["speed"] = 0.0
@@ -629,8 +792,12 @@ class UIBridgeNode(Node):
             return
         linear = float(payload.get("linear", 0.0))
         angular = float(payload.get("angular", 0.0))
-        if self._state["switch"]["mode"] != "manual":
+        if (self._mode == "live" and not self._manual_allowed()) or self._state["switch"]["mode"] != "manual":
             self.get_logger().warn("Teleop rejected: switch is not in MANUAL mode")
+            return
+        if not all(math.isfinite(v) for v in (linear, angular)):
+            return
+        if abs(linear) > 0.5 or abs(angular) > 1.0:
             return
         if self._mode == "live":
             from geometry_msgs.msg import Twist
@@ -638,12 +805,14 @@ class UIBridgeNode(Node):
             tw.linear.x = linear
             tw.angular.z = angular
             if not hasattr(self, "_cmd_vel_pub"):
-                self._cmd_vel_pub = self.create_publisher(Twist, "/cmd_vel/manual", 10)
+                self._cmd_vel_pub = self.create_publisher(Twist, "/cmd_vel/manual_teleop", 10)
             self._cmd_vel_pub.publish(tw)
         else:
             self._state["pose"]["speed"] = abs(linear)
 
     def _handle_lift(self, payload: dict):
+        if self._mode != "mock":
+            return
         action = payload.get("action", "") if isinstance(payload, dict) else payload
         lift = self._state.setdefault("lift", {"height_pct": 0, "moving": False})
         step = 10
@@ -664,6 +833,22 @@ class UIBridgeNode(Node):
     # ─────────────────────────────────────────────────────────
     def _publish_state(self):
         self._state["meta"]["ts"] = time.time()
+        if self._mode == "live":
+            now = time.monotonic()
+            self._state["meta"]["sources"] = {
+                src["topic"]: {"age_s": now - self._topic_last_seen[src["topic"]]
+                               if src["topic"] in self._topic_last_seen else None}
+                for src in self._bridge_cfg.get("sources", [])}
+            self._state["controls"] = {
+                "start_mission": self._mission_action.server_is_ready() and not self._goal_handle and not self._goal_pending,
+                "cancel_mission": self._goal_handle is not None,
+                "pause_mission": self._pause_client.service_is_ready(),
+                "resume_mission": self._resume_client.service_is_ready(),
+            }
+            msg = String()
+            msg.data = json.dumps(self._state, ensure_ascii=False, allow_nan=False)
+            self._state_pub.publish(msg)
+            return
         if self._mission_started_at is not None:
             elapsed = int(time.monotonic() - self._mission_started_at)
             self._state["mission"]["elapsed_s"] = elapsed

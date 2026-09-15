@@ -1,65 +1,38 @@
-# hamals_ui — runtime parameters
-# mode: live  → subscribe real ROS topics
-#        mock  → play scenario.yaml, never subscribe
-mode: mock
-
+mode: live
 rosbridge:
   host: 0.0.0.0
   port: 9090
-
 web:
   host: 0.0.0.0
   port: 8080
-
 camera:
-  front_topic: /camera_front/image_raw
-  back_topic:  /camera_back/image_raw
+  front_topic: /camera/image_raw
   web_video_server_port: 8081
-  web_video_server_host: robot    # overridden by env on real robot
-
+  web_video_server_host: robot
 tolerances:
   path_deviation_cm: 10.0
-  position_cm:        7.5
-  heading_deg:        5.0
-  max_load_kg:        5.0
-
+  position_cm: 7.5
+  heading_deg: 5.0
+  max_load_kg: 5.0
 mission:
   target_min: 30
-  limit_min:  45
-
+  limit_min: 45
 network:
-  plc_ip:    192.168.1.50
-  plc_port:  502
-  protocol:  tcp_modbus
-  wifi_ssid: "YARISMA AGI"
-
+  parameter_node: /hamals_plc_bridge
 ui_bridge:
-  publish_hz:    10.0   # /ui/state publish rate
-  map_hz:         1.0   # /ui/map  publish rate (throttled)
-  log_buffer:    50     # max entries kept in state.logs
-  msg_buffer:    20     # max entries kept in state.messages
-
-# Nodes currently implemented / expected to be running during competition
+  publish_hz: 10.0
+  map_hz: 1.0
+  log_buffer: 50
+  msg_buffer: 20
 expected_nodes:
-  - /ui_bridge_node
-  - /rosbridge_websocket
-  - /robot_state_publisher
-  - /slam_toolbox
-  - /scan_processor_node
-  - /serial_bridge
-  - /localization_node
-  - /nav2/controller_server
-  - /nav2/planner_server
-  - /nav2/bt_navigator
-  - /nav2/behavior_server
-  - /nav2/lifecycle_manager
-  - /manual_teleop_node
-  - /hamal_mission_server
-
-# Nodes planned but not yet implemented — start as active:false in mock
-planned_nodes:
-  - /plc_bridge
-  - /safety_node
-  - /qr_node
-  - /line_follower_node
-  - /firmware_bridge
+- /ui_bridge_node
+- /rosbridge_websocket
+- /robot_state_publisher
+- /scan_processor_node
+- /hamals_serial_bridge
+- /teleop_node
+- /hamals_mission
+- /hamals_plc_bridge
+- /hamals_safety
+- /hamals_fork
+planned_nodes: []
