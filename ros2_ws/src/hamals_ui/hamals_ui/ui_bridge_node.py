@@ -209,15 +209,16 @@ class UIBridgeNode(Node):
         vvs_host = cam_cfg.get("web_video_server_host", "robot")
         self.declare_parameter("vvs_port", cam_cfg.get("web_video_server_port", 8081))
         vvs_port = self.get_parameter("vvs_port").value
-        self._cam_front_url = (
+        self._camera_topic = cam_cfg.get("topic", "/camera/image_raw/compressed")
+        # image_transport takes the base name and subscribes to /compressed.
+        camera_base = self._camera_topic.removesuffix("/compressed")
+        self._camera_url = (
             f"http://{vvs_host}:{vvs_port}/stream?type=mjpeg"
-            f"&topic={cam_cfg.get('front_topic', '/camera/image_raw')}"
+            f"&topic={camera_base}&default_transport=compressed&qos_profile=sensor_data"
         )
-        self._cam_back_url = ""
         self._state = _default_state() if self._mode == "live" else _mock_default_state()
         self._state["meta"]["mode"] = self._mode
-        self._state["cameras"]["front_url"] = self._cam_front_url
-        self._state["cameras"]["back_url"] = self._cam_back_url
+        self._state["cameras"] = {"topic": self._camera_topic, "stream_url": self._camera_url}
         self._state["topology"] = _load_yaml(os.path.join(cfg_dir, "topology.yaml"))
 
         # Node list from config
@@ -550,8 +551,7 @@ class UIBridgeNode(Node):
         self._state["logs"] = self._state["logs"][-self._log_buf:]
 
         # Keep camera URLs
-        self._state["cameras"]["front_url"] = self._cam_front_url
-        self._state["cameras"]["back_url"] = self._cam_back_url
+        self._state["cameras"] = {"topic": self._camera_topic, "stream_url": self._camera_url}
 
     def _switch_scenario(self, name: str):
         """Select a scenario and reset to step 0 (paused)."""

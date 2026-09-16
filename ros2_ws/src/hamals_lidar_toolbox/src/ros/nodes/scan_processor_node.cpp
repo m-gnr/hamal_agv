@@ -1,5 +1,8 @@
 #include "hamals_lidar_toolbox/ros/nodes/scan_processor_node.hpp"
 
+#include <cmath>
+#include <stdexcept>
+
 using std::placeholders::_1;
 
 ScanProcessorNode::ScanProcessorNode(const rclcpp::NodeOptions& options)
@@ -19,6 +22,10 @@ ScanProcessorNode::ScanProcessorNode(const rclcpp::NodeOptions& options)
     this->declare_parameter<double>("regions.rear.max");
 
     this->declare_parameter<bool>("debug.enable_rviz", false);
+    this->declare_parameter<bool>("fork_mask.enabled", true);
+    this->declare_parameter<double>("fork_mask.min", -0.20);
+    this->declare_parameter<double>("fork_mask.max", 0.20);
+    this->declare_parameter<double>("fork_mask.state_timeout", 0.5);
 
     double danger_distance =
         this->get_parameter("danger_distance").as_double();
@@ -31,6 +38,23 @@ ScanProcessorNode::ScanProcessorNode(const rclcpp::NodeOptions& options)
 
     debug_rviz_enabled_ =
         this->get_parameter("debug.enable_rviz").as_bool();
+
+    const double state_timeout =
+        this->get_parameter("fork_mask.state_timeout").as_double();
+    fork_mask_angles_ = {
+        "fork_mask",
+        this->get_parameter("fork_mask.min").as_double(),
+        this->get_parameter("fork_mask.max").as_double()
+    };
+    if (!std::isfinite(state_timeout) || state_timeout < 0.0 ||
+        !std::isfinite(fork_mask_angles_.min_angle) ||
+        !std::isfinite(fork_mask_angles_.max_angle))
+    {
+        throw std::invalid_argument("fork_mask parameters must be finite and timeout nonnegative");
+    }
+    fork_mask_state_ = std::make_unique<
+        hamals_lidar_toolbox::core::ForkMaskState>(
+            this->get_parameter("fork_mask.enabled").as_bool(), state_timeout);
 
     sanitizer_ = std::make_unique<
         hamals_lidar_toolbox::core::ScanSanitizer>(min_range, max_range);
@@ -55,6 +79,12 @@ ScanProcessorNode::ScanProcessorNode(const rclcpp::NodeOptions& options)
             rclcpp::SensorDataQoS(),
             std::bind(&ScanProcessorNode::scanCallback, this, _1));
 
+    // ForkNode publishes with the default reliable, keep-last depth 10 QoS.
+    fork_state_subscriber_ =
+        this->create_subscription<hamals_interfaces::msg::ForkState>(
+            "/fork/state", 10,
+            std::bind(&ScanProcessorNode::forkStateCallback, this, _1));
+
     obstacle_state_pub_ =
         this->create_publisher<hamals_interfaces::msg::ObstacleState>(
             "/scan/obstacle_state", 10);
@@ -65,15 +95,43 @@ ScanProcessorNode::ScanProcessorNode(const rclcpp::NodeOptions& options)
         debug_rviz_enabled_ ? "ON" : "OFF");
 }
 
+void ScanProcessorNode::forkStateCallback(
+    const hamals_interfaces::msg::ForkState::ConstSharedPtr msg)
+{
+    fork_mask_state_->receive(
+        msg->lower_limit,
+        hamals_lidar_toolbox::core::ForkMaskState::Clock::now());
+}
+
 void ScanProcessorNode::scanCallback(
     const sensor_msgs::msg::LaserScan::SharedPtr msg)
 {
     auto scan =
         hamals_lidar_toolbox::ros::adapters::LaserScanAdapter::fromRosMessage(*msg);
 
-    auto clean_scan = sanitizer_->sanitize(scan);
+    const auto now = hamals_lidar_toolbox::core::ForkMaskState::Clock::now();
+    const bool fork_mask_active = fork_mask_state_->active(now);
+    if (fork_mask_active != fork_mask_was_active_)
+    {
+        if (fork_mask_active)
+        {
+            RCLCPP_INFO(this->get_logger(), "Fork lidar mask ACTIVE");
+        }
+        else if (fork_mask_state_->stale(now))
+        {
+            RCLCPP_WARN(this->get_logger(), "Fork state STALE - lidar mask disabled");
+        }
+        else
+        {
+            RCLCPP_INFO(this->get_logger(), "Fork lidar mask INACTIVE");
+        }
+        fork_mask_was_active_ = fork_mask_active;
+    }
 
-    auto segments = segmenter_->segment(clean_scan);
+    auto segments = segmenter_->segment(
+        scan, fork_mask_active ? &fork_mask_angles_ : nullptr);
+
+    auto clean_scan = sanitizer_->sanitize(scan);
 
     auto metrics =
         hamals_lidar_toolbox::core::ScanMetrics::compute(clean_scan, segments);

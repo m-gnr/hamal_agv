@@ -5,7 +5,7 @@ import { manualControl } from '../src/composables/manualControl.js'
 function fixture(mode = 'manual') {
   return liveState({ meta: { mode: 'live', ts: 10, sources: {
     '/switch/mode': { age_s: 0.1 }, '/safety/state': { age_s: 0.1 },
-    '/scan/obstacle_state': { age_s: 0.1 }, '/qr/detection': { age_s: 0.1 },
+    '/scan/obstacle_state': { age_s: 0.1 }, '/qr/detected': { age_s: 0.1 },
   } }, switch: { mode } }, true, 1000, 1000)
 }
 for (const mode of ['manual', 'auto', 'unknown', '', 'MANUAL', ' manual']) {
@@ -52,7 +52,7 @@ test('QR false never exposes an old active payload', () => {
   const s = fixture(); s.qr = { detected: false, id: 'OLD' }
   assert.equal(qrActive(s), false)
   s.qr.detected = true; assert.equal(qrActive(s), true)
-  s.meta.sources['/qr/detection'].age_s = 4; assert.equal(qrActive(s), false)
+  s.meta.sources['/qr/detected'].age_s = 4; assert.equal(qrActive(s), false)
 })
 test('hold publishes, release sends zero and ends stream', () => {
   const sent = []; let tick; let cleared = false

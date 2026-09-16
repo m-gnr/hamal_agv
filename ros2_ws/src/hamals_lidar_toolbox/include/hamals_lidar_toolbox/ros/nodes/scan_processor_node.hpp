@@ -9,7 +9,9 @@
 #include "hamals_lidar_toolbox/core/ScanSegmenter.hpp"
 #include "hamals_lidar_toolbox/core/ScanMetrics.hpp"
 #include "hamals_lidar_toolbox/core/ObstacleDetector.hpp"
+#include "hamals_lidar_toolbox/core/ForkMaskState.hpp"
 #include "hamals_interfaces/msg/obstacle_state.hpp"
+#include "hamals_interfaces/msg/fork_state.hpp"
 
 #include "hamals_lidar_toolbox/ros/rviz/RvizDebugPublisher.hpp"
 
@@ -27,9 +29,12 @@ private:
     createRegionsFromParams() const;
 
     void scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg);
+    void forkStateCallback(const hamals_interfaces::msg::ForkState::ConstSharedPtr msg);
 
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr
         scan_subscriber_;
+    rclcpp::Subscription<hamals_interfaces::msg::ForkState>::SharedPtr
+        fork_state_subscriber_;
 
     rclcpp::Publisher<
         hamals_interfaces::msg::ObstacleState
@@ -38,6 +43,9 @@ private:
     std::unique_ptr<hamals_lidar_toolbox::core::ScanSanitizer> sanitizer_;
     std::unique_ptr<hamals_lidar_toolbox::core::ScanSegmenter> segmenter_;
     std::unique_ptr<hamals_lidar_toolbox::core::ObstacleDetector> obstacle_detector_;
+    std::unique_ptr<hamals_lidar_toolbox::core::ForkMaskState> fork_mask_state_;
+    hamals_lidar_toolbox::core::ScanSegmenter::Region fork_mask_angles_;
+    bool fork_mask_was_active_{false};
 
     bool debug_rviz_enabled_{false};
 

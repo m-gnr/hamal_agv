@@ -18,6 +18,15 @@ static double normalizeAngle(double angle)
     return angle - M_PI;
 }
 
+static bool angleInRegion(double angle, const ScanSegmenter::Region& region)
+{
+    if (region.min_angle <= region.max_angle)
+    {
+        return angle >= region.min_angle && angle <= region.max_angle;
+    }
+    return angle >= region.min_angle || angle <= region.max_angle;
+}
+
 ScanSegmenter::ScanSegmenter(const std::vector<Region>& regions)
     : regions_(regions)
 {
@@ -29,7 +38,7 @@ ScanSegmenter::ScanSegmenter(const std::vector<Region>& regions)
 }
 
 std::unordered_map<std::string, std::vector<std::size_t>>
-ScanSegmenter::segment(const ScanData& scan) const
+ScanSegmenter::segment(const ScanData& scan, const Region* excluded_angles) const
 {
     std::unordered_map<std::string, std::vector<std::size_t>> result;
 
@@ -47,26 +56,17 @@ ScanSegmenter::segment(const ScanData& scan) const
         double angle = angle_min + static_cast<double>(i) * angle_inc;
         double normalized_angle = normalizeAngle(angle);
 
+        // Drop masked beams before any region receives their indices.
+        if (excluded_angles && angleInRegion(normalized_angle, *excluded_angles))
+        {
+            continue;
+        }
+
         for (const auto& region : regions_)
         {
-            double min_a = region.min_angle;
-            double max_a = region.max_angle;
-
-            if (min_a <= max_a)
+            if (angleInRegion(normalized_angle, region))
             {
-                if (normalized_angle >= min_a &&
-                    normalized_angle <= max_a)
-                {
-                    result[region.name].push_back(i);
-                }
-            }
-            else
-            {
-                if (normalized_angle >= min_a ||
-                    normalized_angle <= max_a)
-                {
-                    result[region.name].push_back(i);
-                }
+                result[region.name].push_back(i);
             }
         }
     }

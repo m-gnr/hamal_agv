@@ -10,60 +10,8 @@
           </StatPill>
         </div>
       </template>
-      <div class="cameras-grid">
-        <!-- Front camera -->
-        <div :class="['cam-panel', s.cameras?.active === 'front' ? 'cam-panel-active' : 'cam-panel-dim']">
-          <div class="cam-panel-header">
-            <span class="cam-label">ÖN KAMERA</span>
-            <span v-if="s.cameras?.active === 'front'" class="cam-active-badge">AKTİF</span>
-            <span :class="['cam-sensor-dot', s.sensors?.cam_front ? 'dot-green' : 'dot-red']" />
-          </div>
-          <div class="cam-stream-wrap">
-            <img
-              v-if="s.cameras?.front_url"
-              :src="s.cameras.front_url"
-              class="cam-stream"
-              onerror="this.style.display='none'"
-              alt="Ön kamera akışı"
-            />
-            <div v-else class="no-stream">
-              <CameraOff :size="36" />
-              <span>Ön kamera mevcut değil</span>
-            </div>
-          </div>
-          <div class="cam-panel-footer">
-            <StatPill :variant="s.sensors?.cam_front ? 'success' : 'danger'" :dot="true">
-              {{ s.sensors?.cam_front ? 'Aktif' : 'Pasif' }}
-            </StatPill>
-          </div>
-        </div>
-
-        <!-- Back camera -->
-        <div :class="['cam-panel', s.cameras?.active === 'back' ? 'cam-panel-active' : 'cam-panel-dim']">
-          <div class="cam-panel-header">
-            <span class="cam-label">ARKA KAMERA</span>
-            <span v-if="s.cameras?.active === 'back'" class="cam-active-badge">AKTİF</span>
-            <span :class="['cam-sensor-dot', s.sensors?.cam_back ? 'dot-green' : 'dot-red']" />
-          </div>
-          <div class="cam-stream-wrap">
-            <img
-              v-if="s.cameras?.back_url"
-              :src="s.cameras.back_url"
-              class="cam-stream"
-              onerror="this.style.display='none'"
-              alt="Arka kamera akışı"
-            />
-            <div v-else class="no-stream">
-              <CameraOff :size="36" />
-              <span>Arka kamera mevcut değil</span>
-            </div>
-          </div>
-          <div class="cam-panel-footer">
-            <StatPill :variant="s.sensors?.cam_back ? 'success' : 'danger'" :dot="true">
-              {{ s.sensors?.cam_back ? 'Aktif' : 'Pasif' }}
-            </StatPill>
-          </div>
-        </div>
+      <div class="cam-stream-wrap">
+        <CameraStream :url="s.cameras?.stream_url" :fresh="s.sensors?.camera === true" />
       </div>
     </Card>
 
@@ -138,6 +86,7 @@ import { computed } from 'vue'
 import {
   Camera as CameraIcon, CameraOff, ScanLine, QrCode, Cpu,
 } from 'lucide-vue-next'
+import CameraStream from './CameraStream.vue'
 import Card from './Card.vue'
 import SectionTitle from './SectionTitle.vue'
 import StatPill from './StatPill.vue'
@@ -148,7 +97,7 @@ const s = computed(() => props.state || {})
 
 const LINE_STATUS = { tracking: 'Takip Ediliyor', lost: 'Çizgi Kayboldu' }
 const QR_STATUS   = { read: 'Okundu', searching: 'Aranıyor', none: 'Bekliyor' }
-const CAMS = [['cam_front', 'Ön Kamera'], ['cam_back', 'Arka Kamera'], ['lidar', 'LiDAR']]
+const CAMS = [['camera', 'Kamera'], ['lidar', 'LiDAR']]
 
 const qrVariant = computed(() => {
   const st = s.value.qr?.status

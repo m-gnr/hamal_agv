@@ -25,8 +25,8 @@ sources:
     offline_key: sensors.lidar
     fields: []
 
-  - topic: /camera/image_raw
-    type: sensor_msgs/Image
+  - topic: /camera/image_raw/compressed
+    type: sensor_msgs/CompressedImage
     qos: best_effort
     offline_key: sensors.camera
     fields: []
@@ -62,17 +62,17 @@ sources:
       - {msg_field: retry_count, state_key: mission.retry_count}
       - {msg_field: elapsed_s, state_key: mission.elapsed_s}
 
-  - topic: /qr/detection
-    type: hamals_interfaces/QrDetection
+  - topic: /qr/detected
+    type: std_msgs/Bool
     qos: reliable
     fields:
-      - {msg_field: payload, state_key: qr.id}
-      - {msg_field: detected, state_key: qr.detected}
-      - {msg_field: x, state_key: qr.x}
-      - {msg_field: y, state_key: qr.y}
-      - {msg_field: z, state_key: qr.z}
-      - {msg_field: yaw_deg, state_key: qr.yaw_deg}
-      - {msg_field: confidence, state_key: qr.confidence}
+      - {msg_field: data, state_key: qr.detected}
+
+  - topic: /qr/text
+    type: std_msgs/String
+    qos: reliable
+    fields:
+      - {msg_field: data, state_key: qr.id}
 
   - topic: /line/detected
     type: std_msgs/Bool

@@ -83,16 +83,16 @@
       </Card>
 
       <Card v-if="show('dashboard', 'camera')">
-        <template #header><SectionTitle>Kamera · /camera/image_raw</SectionTitle></template>
-        <CameraStream :url="state.cameras?.front_url" :fresh="health('/camera/image_raw') === 'live'" />
-        <p>{{ health('/camera/image_raw') }}</p>
+        <template #header><SectionTitle>Kamera · {{ cameraTopic }}</SectionTitle></template>
+        <CameraStream :url="state.cameras?.stream_url" :fresh="health(cameraTopic) === 'live'" />
+        <p>{{ health(cameraTopic) }}</p>
       </Card>
       <Card v-if="show('dashboard', 'camera')">
         <template #header><SectionTitle>QR / Çizgi</SectionTitle></template>
         <dl>
-          <dt>QR detected</dt><dd>{{ value('/qr/detection', state.qr?.detected) }}</dd>
-          <dt>Aktif QR</dt><dd>{{ qrActive(state) ? state.qr?.id || 'unknown' : '—' }}</dd>
-          <dt>QR x / y / z (m)</dt><dd>{{ qrActive(state) ? [state.qr?.x, state.qr?.y, state.qr?.z].join(' / ') : '—' }}</dd>
+          <dt>QR detected</dt><dd>{{ value('/qr/detected', state.qr?.detected) }}</dd>
+          <dt>Aktif QR</dt><dd>{{ qrActive(state) ? value('/qr/text', state.qr?.id) : '—' }}</dd>
+          <dt>QR x / y / z (m)</dt><dd>unknown · bu kaynak yayınlamıyor</dd>
           <dt>Çizgi detected</dt><dd>{{ value('/line/detected', state.line?.detected) }}</dd>
           <dt>Çizgi hatası (px)</dt><dd>{{ health('/line/detected') === 'live' && state.line?.detected === true ? value('/line/error', state.line?.error_px) : '—' }}</dd>
         </dl>
@@ -119,6 +119,7 @@ import CameraStream from './CameraStream.vue'
 import { freshness, qrActive, safetySummary } from '../composables/liveState.js'
 const props = defineProps({ state: { type: Object, required: true }, tab: String })
 const emit = defineEmits(['send-cmd'])
+const cameraTopic = computed(() => props.state.cameras?.topic || '/camera/image_raw/compressed')
 const task = reactive({ task_id: '', pickup_id: '', dropoff_id: '' })
 const show = (...tabs) => tabs.includes(props.tab)
 const health = (topic, timeout) => freshness(props.state, topic, timeout)

@@ -96,6 +96,11 @@ ament_export_dependencies(
 )
 
 if(BUILD_TESTING)
+  enable_testing()
+  add_executable(test_fork_mask test/test_fork_mask.cpp)
+  target_link_libraries(test_fork_mask hamals_lidar_toolbox_core)
+  add_test(NAME test_fork_mask COMMAND test_fork_mask)
+
   find_package(ament_lint_auto REQUIRED)
   set(ament_cmake_copyright_FOUND TRUE)
   set(ament_cmake_cpplint_FOUND TRUE)

@@ -24,6 +24,12 @@ scan_processor_node:
       rear:
         min:  2.356
         max: -2.356
-        
+
+    fork_mask:
+      enabled: true
+      min: -0.20
+      max: 0.20
+      state_timeout: 0.5
+
     debug:
       enable_rviz: true

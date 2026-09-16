@@ -37,5 +37,5 @@ export function safetySummary(state) {
   return { label: s.reason || 'unknown', tone: s.state === 4 ? 'warn' : 'unknown' }
 }
 export function qrActive(state) {
-  return freshness(state, '/qr/detection') === 'live' && state.qr?.detected === true
+  return freshness(state, '/qr/detected') === 'live' && state.qr?.detected === true
 }

@@ -36,3 +36,24 @@ test('actual safety panel renders boolean obstacle as ENGEL', async () => {
   assert.match(html, /ENGEL/); assert.match(html, /class="danger"/)
   assert.doesNotMatch(html, /Temiz|class="healthy"/)
 })
+
+test('single compressed camera and split QR topics render live without raw camera or QrDetection', async () => {
+  const state = liveState({ meta: { mode: 'live', sources: {
+    '/camera/image_raw/compressed': { age_s: 0 },
+    '/qr/detected': { age_s: 0 }, '/qr/text': { age_s: 0 },
+    '/line/detected': { age_s: 0 }, '/line/error': { age_s: 0 },
+  } }, cameras: { topic: '/camera/image_raw/compressed',
+    stream_url: 'http://localhost:8081/stream?topic=/camera/image_raw&default_transport=compressed&qos_profile=sensor_data' },
+    qr: { detected: true, id: 'PALLET-42' }, line: { detected: true, error_px: -12 },
+  }, true, 1000, 1000)
+  const html = await render(Panel, { tab: 'camera', state })
+  assert.match(html, /PALLET-42/)
+  assert.match(html, /-12/)
+  assert.match(html, /default_transport=compressed/)
+  assert.match(html, /Kamera · \/camera\/image_raw\/compressed/)
+  assert.equal((html.match(/<img /g) || []).length, 1)
+  assert.doesNotMatch(html, /ÖN KAMERA|ARKA KAMERA/)
+  state.meta.sources['/qr/text'].age_s = 5
+  const stale = await render(Panel, { tab: 'camera', state })
+  assert.doesNotMatch(stale, /PALLET-42/)
+})
