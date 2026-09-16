@@ -1,0 +1,38 @@
+mode: live
+rosbridge:
+  host: 0.0.0.0
+  port: 9090
+web:
+  host: 0.0.0.0
+  port: 8080
+camera:
+  topic: /camera/image_raw/compressed
+  web_video_server_port: 8081
+  web_video_server_host: robot
+tolerances:
+  path_deviation_cm: 10.0
+  position_cm: 7.5
+  heading_deg: 5.0
+  max_load_kg: 5.0
+mission:
+  target_min: 30
+  limit_min: 45
+network:
+  parameter_node: /hamals_plc_bridge
+ui_bridge:
+  publish_hz: 10.0
+  map_hz: 1.0
+  log_buffer: 50
+  msg_buffer: 20
+expected_nodes:
+- /ui_bridge_node
+- /rosbridge_websocket
+- /robot_state_publisher
+- /scan_processor_node
+- /hamals_serial_bridge
+- /teleop_node
+- /hamals_mission
+- /hamals_plc_bridge
+- /hamals_safety
+- /hamals_fork
+planned_nodes: []

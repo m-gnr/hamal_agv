@@ -1,0 +1,74 @@
+vision_node:
+  ros__parameters:
+
+    # ================= KAMERA =================
+    # Panel 640x480 bekliyor (KAMERA_ARAYUZ.md). 1280x720 gereksiz:
+    # kare 2.76 MB yerine 0.92 MB, isleme maliyeti 4'te 1.
+    width: 640
+    height: 480
+    fps: 30.0
+    buffer_count: 4
+
+    # lores/YUV420 akisi: gri goruntu BEDAVA gelir (Y duzlemi).
+    # cvtColor(BGR2GRAY) her karede tamamen ortadan kalkar.
+    # Sensorunuz lores desteklemezse dugum kendisi tek akisa duser.
+    use_lores_gray: true
+
+    opencv_threads: 2
+    video_device: -1        # -1 = picamera2. Test icin USB kamera: 0
+
+    # ---------- POZLAMA / ODAK ----------
+    # BURASI EN KRITIK KISIM.
+    #
+    # Otomatik pozlama acikken kamera hareket halinde uzun pozlama secer,
+    # QR'in kenarlari erir ve okunmaz. Sabit KISA pozlama + yuksek kazanc
+    # goruntuyu biraz gurultulu ama KESKIN yapar; QR de okunur.
+    auto_exposure: false
+    exposure_time_us: 6000     # 6 ms. Bulaniksa 4000'e indir, karanliksa 9000
+    analogue_gain: 6.0         # pozlamayi kisaltinca burayi yukselt (2.0-12.0)
+    auto_white_balance: true
+
+    # Surekli otofokus (AfMode 2) sabit mesafeli bir kamerada surekli
+    # "odak avlar" ve kareleri bulaniklastirir. Manuel odak sabit kalir.
+    autofocus_mode: 0          # 0 manuel, 1 tek sefer, 2 surekli
+    lens_position: 4.5         # 1/metre. 4.5 -> ~22 cm. 2.0 -> 50 cm. 0 -> sonsuz
+
+    brightness: 0.0
+    contrast: 1.0
+
+    # ================= YAYIN =================
+    # Isleme 30 Hz'de doner (cizgi kontrolu icin), JPEG bundan bagimsiz
+    # ve daha dusuk hizda cikar. Ag yuku boylece kontrol hizini sinirlamaz.
+    publish_fps: 12.0
+    jpeg_quality: 72
+    publish_raw: false         # ham Image ASLA agdan gecmesin
+    draw_overlays: true        # panel draw_overlays:false, cizimi biz yapiyoruz
+
+    # ================= CIZGI =================
+    line_enabled: true
+
+    # Sadece bu band islenir. Kamera arkada oldugu icin bandi asagida
+    # tutmak robotun hemen onundeki/arkasindaki cizgiyi verir.
+    line_roi_top: 0.72
+    line_roi_bottom: 0.98
+
+    line_work_width: 320       # band bu genislige indirilir (128-640)
+    line_auto_threshold: true  # Otsu: isik degisimine dayanikli
+    line_threshold: 100        # auto kapaliysa kullanilir
+    line_dark: true            # true = acik zeminde KOYU cizgi
+
+    line_fill_ratio: 0.45      # sutunun bu kadari dolu degilse cizgi sayilmaz
+    line_min_width_px: 6       # bundan ince = parazit
+    line_max_width_px: 220     # bundan kalin = golge/palet, cizgi degil
+    line_jump_limit_px: 140    # bir karede bu kadardan fazla sicrama kabul edilmez
+    line_smooth_alpha: 0.5     # 1.0 = filtre yok, 0.3 = cok yumusak
+    line_stable_frames: 3      # histerezis
+
+    # ================= QR =================
+    qr_enabled: true
+    qr_every_n: 2              # QR ayri iplikte; 1 de yapabilirsin
+    qr_scale: 1.0              # 0.5 = yarim boyutta ara (2-3 kat hizli, menzil dusuk)
+    qr_roi_top: 0.0            # QR hep ust yarida ise 0.0 / 0.6 yap
+    qr_roi_bottom: 1.0
+    qr_hold_sec: 0.6           # isaret bu kadar sure ekranda kalir
+    qr_stable_frames: 2

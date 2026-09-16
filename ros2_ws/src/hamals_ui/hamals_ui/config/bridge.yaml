@@ -1,0 +1,135 @@
+# Live sources: absent fields are unknown; source age is monotonic receipt age.
+sources:
+
+  - topic: /odom
+    type: nav_msgs/Odometry
+    qos: best_effort
+    offline_key: sensors.odom
+    fields:
+      - {msg_field: header.frame_id, state_key: pose.frame_id}
+      - {msg_field: child_frame_id, state_key: pose.child_frame_id}
+      - {msg_field: pose.pose.position.x, state_key: pose.x}
+      - {msg_field: pose.pose.position.y, state_key: pose.y}
+      - {msg_field: twist.twist.linear.x, state_key: pose.speed}
+      - {msg_field: twist.twist.angular.z, state_key: pose.omega}
+
+  - topic: /imu/data
+    type: sensor_msgs/Imu
+    qos: best_effort
+    offline_key: sensors.imu
+    fields: []
+
+  - topic: /scan
+    type: sensor_msgs/LaserScan
+    qos: best_effort
+    offline_key: sensors.lidar
+    fields: []
+
+  - topic: /camera/image_raw/compressed
+    type: sensor_msgs/CompressedImage
+    qos: best_effort
+    offline_key: sensors.camera
+    fields: []
+
+  - topic: /estop
+    type: std_msgs/Bool
+    qos: reliable
+    fields:
+      - {msg_field: data, state_key: estop.active}
+
+  - topic: /switch/mode
+    type: std_msgs/String
+    qos: reliable
+    fields:
+      - {msg_field: data, state_key: switch.mode}
+
+  - topic: /mission/state
+    type: hamals_interfaces/MissionState
+    qos: reliable
+    fields:
+      - {msg_field: state, state_key: mission.state}
+      - {msg_field: phase, state_key: mission.phase}
+      - {msg_field: task_id, state_key: mission.task_id}
+      - {msg_field: pickup_id, state_key: mission.pickup_id}
+      - {msg_field: dropoff_id, state_key: mission.dropoff_id}
+      - {msg_field: carrying_load, state_key: mission.carrying_load}
+      - {msg_field: active_target, state_key: mission.active_target}
+      - {msg_field: expected_qr, state_key: mission.expected_qr}
+      - {msg_field: verified_qr, state_key: mission.verified_qr}
+      - {msg_field: pause_reason, state_key: mission.pause_reason}
+      - {msg_field: error_code, state_key: mission.error_code}
+      - {msg_field: message, state_key: mission.message}
+      - {msg_field: retry_count, state_key: mission.retry_count}
+      - {msg_field: elapsed_s, state_key: mission.elapsed_s}
+
+  - topic: /qr/detected
+    type: std_msgs/Bool
+    qos: reliable
+    fields:
+      - {msg_field: data, state_key: qr.detected}
+
+  - topic: /qr/text
+    type: std_msgs/String
+    qos: reliable
+    fields:
+      - {msg_field: data, state_key: qr.id}
+
+  - topic: /line/detected
+    type: std_msgs/Bool
+    qos: reliable
+    fields:
+      - {msg_field: data, state_key: line.detected}
+
+  - topic: /line/error
+    type: std_msgs/Int32
+    qos: reliable
+    fields:
+      - {msg_field: data, state_key: line.error_px}
+
+  - topic: /plc/state
+    type: hamals_interfaces/PlcState
+    qos: reliable
+    fields:
+      - {msg_field: connection_state, state_key: plc.connection_state}
+      - {msg_field: door_permission, state_key: plc.door_permission}
+      - {msg_field: active_task_id, state_key: plc.active_task_id}
+      - {msg_field: last_rx, state_key: plc.last_rx}
+      - {msg_field: last_tx, state_key: plc.last_tx}
+      - {msg_field: error_message, state_key: plc.error_message}
+
+  - topic: /safety/state
+    type: hamals_interfaces/SafetyState
+    qos: reliable
+    fields:
+      - {msg_field: state, state_key: safety.state}
+      - {msg_field: motion_allowed, state_key: safety.motion_allowed}
+      - {msg_field: estop_active, state_key: safety.estop_active}
+      - {msg_field: manual_mode, state_key: safety.manual_mode}
+      - {msg_field: obstacle_active, state_key: safety.obstacle_active}
+      - {msg_field: obstacle_distance_m, state_key: safety.obstacle_distance_m}
+      - {msg_field: reason, state_key: safety.reason}
+
+  - topic: /scan/obstacle_state
+    type: hamals_interfaces/ObstacleState
+    qos: reliable
+    fields: []
+
+  - topic: /fork/state
+    type: hamals_interfaces/ForkState
+    qos: reliable
+    fields:
+      - {msg_field: t_us, state_key: fork.t_us}
+      - {msg_field: state, state_key: fork.state}
+      - {msg_field: last_command, state_key: fork.last_command}
+      - {msg_field: error_code, state_key: fork.error_code}
+      - {msg_field: is_moving, state_key: fork.is_moving}
+      - {msg_field: upper_limit, state_key: fork.upper_limit}
+      - {msg_field: lower_limit, state_key: fork.lower_limit}
+
+  - topic: /world_model/state
+    type: hamals_interfaces/WorldModelState
+    qos: reliable
+    fields:
+      - {msg_field: valid, state_key: world_model.valid}
+      - {msg_field: profile, state_key: world_model.profile}
+      - {msg_field: config_checksum, state_key: world_model.config_checksum}

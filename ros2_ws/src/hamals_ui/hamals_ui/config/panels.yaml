@@ -1,0 +1,105 @@
+# hamals_ui panels.yaml
+# Defines tabs and panels rendered by the Vue SPA.
+# Add / remove / reorder tabs and panels here — no Vue changes needed.
+#
+# Panel types:
+#   fsm_badge        — big FSM state badge
+#   pose_info        — x/y/theta/speed/deviation
+#   topology_map     — canvas topoloji haritası
+#   qr_info          — QR okuma bilgisi
+#   plc_status       — PLC bağlantı özeti
+#   message_log      — yönlü mesaj listesi
+#   sensor_grid      — sensör sağlık ızgarası
+#   safety_summary   — güvenlik özeti
+#   battery_gauge    — batarya göstergesi
+#   mission_steps    — FSM adım şeridi
+#   camera_stream    — MJPEG kamera görüntüsü
+#   line_info        — çizgi takip bilgisi
+#   teleop_pad       — d-pad + hız slider
+#   lift_control     — kaldır/indir butonları
+#   error_list       — kodlu hata listesi
+#   lidar_radar      — 4-bölgeli radar görsel
+#   log_table        — kayıt tablosu + export
+#   settings_form    — düzenlenebilir parametre formu
+#   network_info     — ağ bilgisi
+#   route_table      — rota noktaları tablosu
+#   map_controls     — haritalama butonları
+
+topbar:
+  panels:
+    - { type: connection_status, bind: connection }
+    - { type: switch_badge,      bind: switch }
+    - { type: battery_mini,      bind: battery,  thresholds: { low: 20, critical: 10 } }
+    - { type: estop_button,      bind: estop }
+    - { type: mission_timer,     bind: mission.timer, target_min: 30, limit_min: 45 }
+    - { type: clock_display }
+    - { type: debug_badge,       bind: meta.mode }
+
+tabs:
+  - id: dashboard
+    title: "Genel Durum"
+    icon: "dashboard"
+    panels:
+      - { type: fsm_badge,      bind: mission.fsm,    col: 1, row: 1 }
+      - { type: pose_info,      bind: pose,           col: 1, row: 2,
+          thresholds: { deviation_warn: 7.0, deviation_danger: 10.0 } }
+      - { type: topology_map,   bind: pose,           col: 2, row: 1, rowspan: 2, mini: true }
+      - { type: qr_info,        bind: qr,             col: 1, row: 3 }
+      - { type: plc_status,     bind: plc,            col: 2, row: 3 }
+      - { type: message_log,    bind: messages,       col: 3, row: 1, max_items: 8 }
+      - { type: sensor_grid,    bind: sensors,        col: 3, row: 2 }
+      - { type: safety_summary, bind: safety,         col: 3, row: 3 }
+      - { type: battery_gauge,  bind: battery,        col: 1, row: 4,
+          thresholds: { low: 20, critical: 10 } }
+
+  - id: map
+    title: "Harita & Rota"
+    icon: "map"
+    panels:
+      - { type: topology_map,  bind: pose,    col: 1, row: 1, rowspan: 3, fullsize: true }
+      - { type: route_table,   bind: nav,     col: 2, row: 1 }
+      - { type: map_controls,  bind: mission, col: 2, row: 2 }
+
+  - id: mission
+    title: "Görev & PLC"
+    icon: "assignment"
+    panels:
+      - { type: mission_steps, bind: mission,  col: 1, row: 1 }
+      - { type: plc_status,    bind: plc,      col: 2, row: 1 }
+      - { type: message_log,   bind: messages, col: 1, row: 2, max_items: 20 }
+
+  - id: manual
+    title: "Manuel Kontrol"
+    icon: "gamepad"
+    lock_when: "switch.mode != 'manual'"
+    lock_message: "Manuel kontrol kilidi: fiziksel anahtar AUTO konumunda"
+    panels:
+      - { type: teleop_pad,    bind: pose,    col: 1, row: 1 }
+      - { type: lift_control,  bind: mission, col: 2, row: 1 }
+      - { type: camera_stream, bind: cameras, col: 3, row: 1 }
+
+  - id: camera
+    title: "Kamera & Çizgi"
+    icon: "videocam"
+    panels:
+      - { type: camera_stream, bind: cameras, col: 1, row: 1, rowspan: 2 }
+      - { type: line_info,     bind: line,    col: 2, row: 1 }
+      - { type: qr_info,       bind: qr,      col: 2, row: 2 }
+
+  - id: errors
+    title: "Hata & Güvenlik"
+    icon: "security"
+    panels:
+      - { type: lidar_radar,  bind: safety,  col: 1, row: 1 }
+      - { type: safety_summary, bind: safety, col: 2, row: 1 }
+      - { type: error_list,   bind: errors,  col: 1, row: 2, colspan: 2 }
+      - { type: log_table,    bind: logs,    col: 1, row: 3, colspan: 2 }
+
+  - id: settings
+    title: "Ayarlar"
+    icon: "settings"
+    panels:
+      - { type: settings_form, bind: meta,      col: 1, row: 1,
+          readonly_keys: [ "tolerances.path_deviation_cm", "tolerances.position_cm",
+                           "tolerances.heading_deg", "tolerances.max_load_kg" ] }
+      - { type: network_info,  bind: connection, col: 2, row: 1 }
