@@ -54,21 +54,43 @@ test('QR false never exposes an old active payload', () => {
   s.qr.detected = true; assert.equal(qrActive(s), true)
   s.meta.sources['/qr/detected'].age_s = 4; assert.equal(qrActive(s), false)
 })
-test('hold publishes, release sends zero and ends stream', () => {
-  const sent = []; let tick; let cleared = false
-  const control = manualControl(() => true, msg => sent.push(msg), {
-    setInterval(fn) { tick = fn; return 1 }, clearInterval() { cleared = true },
+test('step commands clamp, repeat is ignored, and 20 Hz loop sends current targets', () => {
+  const sent = []; let tick; let period
+  const control = manualControl(() => true, msg => sent.push(msg), () => {}, {
+    setInterval(fn, ms) { tick = fn; period = ms; return 1 }, clearInterval() {},
+    setTimeout() { return 2 }, clearTimeout() {},
   })
-  control.start(0.1, 0); tick(); control.stop()
-  assert.deepEqual(sent.at(-1), { linear: 0, angular: 0 }); assert.equal(cleared, true)
+  const press = (key, repeat = false) => control.keydown({ key, code: `Key${key.toUpperCase()}`, repeat, shiftKey: false, preventDefault() {} })
+  control.start()
+  press('w'); press('w', true); press('w'); press('w')
+  assert.equal(control.targetLinear.value, 0.15)
+  for (let i = 0; i < 10; i++) press('w')
+  assert.equal(control.targetLinear.value, 0.25)
+  press('s')
+  assert.equal(control.targetLinear.value, 0.20)
+  press('a'); press('a'); press('d')
+  assert.equal(control.targetAngular.value, 0.1)
+  tick()
+  assert.equal(period, 50)
+  assert.deepEqual(sent.at(-1), { linear: 0.20, angular: 0.1 })
+  control.keydown({ key: ' ', code: 'Space', repeat: false, shiftKey: false, preventDefault() {} })
+  assert.deepEqual(sent.at(-1), { linear: 0, angular: 0 })
+  control.dispose()
 })
-test('mode loss stops hold without publishing even zero into AUTO', () => {
-  let allowed = true; let tick; const sent = []; let cleared = false
-  const control = manualControl(() => allowed, msg => sent.push(msg), {
-    setInterval(fn) { tick = fn; return 1 }, clearInterval() { cleared = true },
+test('fork shortcuts publish once and Shift+Space preserves movement', () => {
+  let allowed = true; const sent = [], forks = []
+  const control = manualControl(() => allowed, msg => sent.push(msg), action => forks.push(action), {
+    setInterval() { return 1 }, clearInterval() {}, setTimeout() { return 2 }, clearTimeout() {},
   })
-  control.start(0.1, 0); const count = sent.length; allowed = false; tick(); control.stop(); control.start(0.1, 0)
-  assert.equal(sent.length, count); assert.equal(cleared, true)
+  const press = (code, repeat = false) => control.keydown({ key: code, code, repeat, shiftKey: true, preventDefault() {} })
+  control.linear(1)
+  press('ArrowUp'); press('ArrowUp', true); press('ArrowDown'); press('Space')
+  assert.deepEqual(forks, ['up', 'down', 'stop'])
+  assert.equal(control.targetLinear.value, 0.05)
+  allowed = false; control.stop(); press('ArrowUp')
+  assert.deepEqual(sent.at(-1), { linear: 0, angular: 0 })
+  assert.deepEqual(forks, ['up', 'down', 'stop'])
+  control.dispose()
 })
 
 test('mock demo remains explicit and can simulate mode/fork without transport', async () => {
@@ -82,5 +104,7 @@ test('mock demo remains explicit and can simulate mode/fork without transport', 
     const previous = mock.state.value.lift.height_pct
     mock.handleCmd({ type: 'lift', payload: { action: 'up' } })
     assert.equal(mock.state.value.lift.height_pct, previous + 10)
+    mock.handleCmd({ type: 'lift', payload: { action: 'stop' } })
+    assert.equal(mock.state.value.lift.moving, false)
   } finally { mock.stop() }
 })

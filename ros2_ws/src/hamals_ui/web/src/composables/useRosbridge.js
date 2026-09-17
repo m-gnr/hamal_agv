@@ -9,7 +9,7 @@ export function useRosbridge(url, transport = ROSLIB) {
   const receivedAt = ref(null)
   const now = ref(Date.now())
   const state = computed(() => liveState(raw.value, connected.value, receivedAt.value, now.value))
-  let stateTopic, cmdTopic, reconnectTimer, ageTimer, stopped = true
+  let stateTopic, cmdTopic, motionTopic, forkTopic, reconnectTimer, ageTimer, stopped = true
   let lastStamp = null
 
   function publish(topic, type, data) {
@@ -21,12 +21,25 @@ export function useRosbridge(url, transport = ROSLIB) {
   }
   function sendCmd(cmd) {
     const current = liveState(raw.value, connected.value, receivedAt.value, Date.now())
-    if (current.meta.stale) return false
     if (['switch_mode', 'estop', 'estop_ack'].includes(cmd.type)) return false
-    if (cmd.type === 'teleop' || cmd.type === 'lift') {
-      if (!manualAllowed(current)) return false
-      cmd = { ...cmd, payload: { ...cmd.payload, state_ts: current.meta.ts } }
+    if (cmd.type === 'teleop') {
+      const { linear, angular } = cmd.payload || {}
+      if (!Number.isFinite(linear) || !Number.isFinite(angular)) return false
+      if ((linear !== 0 || angular !== 0) && !manualAllowed(current)) return false
+      if (!connected.value || !ros.value?.isConnected || stopped || !motionTopic) return false
+      motionTopic.publish(new transport.Message({
+        linear: { x: linear, y: 0, z: 0 }, angular: { x: 0, y: 0, z: angular },
+      }))
+      return true
     }
+    if (cmd.type === 'lift') {
+      if (!manualAllowed(current) || !connected.value || !ros.value?.isConnected || stopped || !forkTopic) return false
+      const action = { up: 'UP', down: 'DOWN', stop: 'STOP' }[cmd.payload?.action]
+      if (!action) return false
+      forkTopic.publish(new transport.Message({ data: action }))
+      return true
+    }
+    if (current.meta.stale) return false
     return publish('/ui/cmd', 'std_msgs/String', { data: JSON.stringify(cmd) })
   }
   function stopMotion() {
@@ -46,6 +59,8 @@ export function useRosbridge(url, transport = ROSLIB) {
       // eski: cmdTopic  = ...'std_msgs/String', reconnect_on_close: false })
       // eski: stateTopic = ...'std_msgs/String', reconnect_on_close: false })
       cmdTopic = new transport.Topic({ ros: client, name: '/ui/cmd', messageType: 'std_msgs/String' })
+      motionTopic = new transport.Topic({ ros: client, name: '/cmd_vel/manual_teleop', messageType: 'geometry_msgs/msg/Twist' })
+      forkTopic = new transport.Topic({ ros: client, name: '/mcu/fork_cmd', messageType: 'std_msgs/msg/String' })
       stateTopic = new transport.Topic({ ros: client, name: '/ui/state', messageType: 'std_msgs/String' })
       stateTopic.subscribe(msg => {
         if (client !== ros.value || stopped) return
@@ -67,6 +82,7 @@ export function useRosbridge(url, transport = ROSLIB) {
       connected.value = false
       receivedAt.value = null
       if (stateTopic) stateTopic.unsubscribe()
+      motionTopic = forkTopic = null
       if (!stopped && !reconnectTimer) reconnectTimer = setTimeout(() => {
         reconnectTimer = null
         client.removeAllListeners()
@@ -89,6 +105,7 @@ export function useRosbridge(url, transport = ROSLIB) {
     clearTimeout(reconnectTimer)
     clearInterval(ageTimer)
     stateTopic?.unsubscribe()
+    motionTopic = forkTopic = null
     connected.value = false
     ros.value?.close()
     ros.value = null

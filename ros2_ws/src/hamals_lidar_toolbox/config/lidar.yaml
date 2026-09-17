@@ -27,7 +27,7 @@ scan_processor_node:
       front: # FORK MASK AREA
         min:  2.356
         max: -2.356
-        danger_distance: 0.17
+        danger_distance: 0.63
 
     fork_mask:
       enabled: true

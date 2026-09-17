@@ -28,32 +28,34 @@
         <template #header>
           <div class="card-header-row">
             <SectionTitle :icon="Gamepad2">Hareket Kontrolü</SectionTitle>
-            <!-- 3B: Hassasiyet stepper -->
-            <div class="sens-stepper">
-              <span class="sens-stepper__label">Hassasiyet</span>
-              <button class="sens-step-btn" @click="decSens" :disabled="isLocked">−</button>
-              <span class="sens-step-val">{{ stepLin.toFixed(2) }}</span>
-              <button class="sens-step-btn" @click="incSens" :disabled="isLocked">+</button>
-            </div>
           </div>
         </template>
 
         <div class="dpad-container">
           <div class="dpad">
-            <button class="dpad-btn dpad-up"    @pointerdown.prevent="cmdLinear(1)" @pointerup="stopCmd" @pointercancel="stopCmd" @pointerleave="stopCmd"   :disabled="isLocked"><ArrowUp    :size="22" /></button>
-            <button class="dpad-btn dpad-left"  @pointerdown.prevent="cmdAngular(1)" @pointerup="stopCmd" @pointercancel="stopCmd" @pointerleave="stopCmd"  :disabled="isLocked"><ArrowLeft  :size="22" /></button>
-            <button class="dpad-btn dpad-stop"  @click="stopCmd"        :disabled="isLocked">
+            <button class="dpad-btn dpad-up" :class="{ 'key-active': activeButton === 'up' }" @click="control.linear(1)" :disabled="isLocked"><ArrowUp :size="22" /></button>
+            <button class="dpad-btn dpad-left" :class="{ 'key-active': activeButton === 'left' }" @click="control.angular(1)" :disabled="isLocked"><ArrowLeft :size="22" /></button>
+            <button class="dpad-btn dpad-stop" :class="{ 'key-active': activeButton === 'stop' }" @click="control.stop()" :disabled="isLocked">
               <Square :size="16" /><span class="stop-label">DUR</span>
             </button>
-            <button class="dpad-btn dpad-right" @pointerdown.prevent="cmdAngular(-1)" @pointerup="stopCmd" @pointercancel="stopCmd" @pointerleave="stopCmd" :disabled="isLocked"><ArrowRight :size="22" /></button>
-            <button class="dpad-btn dpad-down"  @pointerdown.prevent="cmdLinear(-1)" @pointerup="stopCmd" @pointercancel="stopCmd" @pointerleave="stopCmd"  :disabled="isLocked"><ArrowDown  :size="22" /></button>
+            <button class="dpad-btn dpad-right" :class="{ 'key-active': activeButton === 'right' }" @click="control.angular(-1)" :disabled="isLocked"><ArrowRight :size="22" /></button>
+            <button class="dpad-btn dpad-down" :class="{ 'key-active': activeButton === 'down' }" @click="control.linear(-1)" :disabled="isLocked"><ArrowDown :size="22" /></button>
           </div>
         </div>
 
         <div class="vel-display" aria-label="İstenen hız; robot feedback değildir">
           <span>Komut:</span>
-          <span>v: <strong>{{ curLinear.toFixed(2) }}</strong> m/s</span>
-          <span>ω: <strong>{{ curAngular.toFixed(2) }}</strong> rad/s</span>
+          <span>v: <strong>{{ targetLinear.toFixed(2) }}</strong> m/s</span>
+          <span>ω: <strong>{{ targetAngular.toFixed(2) }}</strong> rad/s</span>
+        </div>
+        <div class="shortcuts" aria-label="Klavye Kısayolları">
+          <strong>Klavye Kısayolları</strong>
+          <span><kbd>W</kbd> / <kbd>S</kbd> Hız artır / azalt</span>
+          <span><kbd>A</kbd> / <kbd>D</kbd> Sola / sağa dönüş</span>
+          <span><kbd>SPACE</kbd> Tüm hareketi durdur</span>
+          <span><kbd>Shift + ↑</kbd> Çatal kaldır</span>
+          <span><kbd>Shift + ↓</kbd> Çatal indir</span>
+          <span><kbd>Shift + Space</kbd> Çatal durdur</span>
         </div>
       </Card>
 
@@ -64,10 +66,10 @@
         <div class="lift-layout">
           <!-- Butonlar -->
           <div class="lift-buttons">
-            <button class="lift-btn lift-up" @click="sendLift('up')" :disabled="isLocked || (!isMock && !forkFresh)">
+            <button class="lift-btn lift-up" :class="{ 'key-active': activeButton === 'fork-up' }" @click="control.fork('up')" :disabled="isLocked">
               <MoveUp :size="18" /> KALDIR
             </button>
-            <button class="lift-btn lift-down" @click="sendLift('down')" :disabled="isLocked || (!isMock && !forkFresh)">
+            <button class="lift-btn lift-down" :class="{ 'key-active': activeButton === 'fork-down' }" @click="control.fork('down')" :disabled="isLocked">
               <MoveDown :size="18" /> İNDİR
             </button>
           </div>
@@ -96,12 +98,14 @@
           </div>
           <span class="lift-status-pct">{{ liftPct }}%</span>
         </div>
-        <div v-if="!isMock" class="fork-feedback">
-          <button class="lift-btn" @click="sendLift('stop')" :disabled="isLocked">Çatal STOP</button>
-          <p v-for="key in ['state', 'upper_limit', 'lower_limit', 'is_moving', 'last_command', 'error_code']" :key="key">
-            {{ key }}: {{ forkFresh ? (s.fork?.[key] ?? 'unknown') : 'stale / unknown' }}
-          </p>
-          <p>Yükseklik yüzdesi ölçülmüyor. state: 0 idle, 1 up, 2 down, 3 top, 4 bottom, 5 error.</p>
+        <div class="fork-feedback">
+          <button class="lift-btn" :class="{ 'key-active': activeButton === 'fork-stop' }" @click="control.fork('stop')" :disabled="isLocked">Çatal STOP</button>
+          <template v-if="!isMock">
+            <p v-for="key in ['state', 'upper_limit', 'lower_limit', 'is_moving', 'last_command', 'error_code']" :key="key">
+              {{ key }}: {{ forkFresh ? (s.fork?.[key] ?? 'unknown') : 'stale / unknown' }}
+            </p>
+            <p>Yükseklik yüzdesi ölçülmüyor. state: 0 idle, 1 up, 2 down, 3 top, 4 bottom, 5 error.</p>
+          </template>
         </div>
       </Card>
 
@@ -130,7 +134,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { manualAllowed, freshness } from '../composables/liveState.js'
 import { manualControl } from '../composables/manualControl.js'
 import CameraStream from './CameraStream.vue'
@@ -153,61 +157,31 @@ function toggleSwitch() {
   emit('send-cmd', { type: 'switch_mode', payload: isLocked.value ? 'manual' : 'auto' })
 }
 
-// ── Hassasiyet stepper (3B) ──────────────────────────────────
-const SENS_MIN  = 0.01
-const SENS_MAX  = 0.50
-const SENS_STEP = 0.01
-const stepLin = ref(0.10)
-const stepAng = ref(0.20)
-
-function incSens() {
-  stepLin.value = +Math.min(SENS_MAX, stepLin.value + SENS_STEP).toFixed(2)
-  stepAng.value = +Math.min(SENS_MAX * 2, stepLin.value * 2).toFixed(2)
-}
-function decSens() {
-  stepLin.value = +Math.max(SENS_MIN, stepLin.value - SENS_STEP).toFixed(2)
-  stepAng.value = +Math.max(SENS_MIN * 2, stepLin.value * 2).toFixed(2)
-}
-
-// ── Hold-to-run teleop ───────────────────────────────────────────
-const curLinear  = ref(0)
-const curAngular = ref(0)
-
-const control = manualControl(() => !isLocked.value, payload => {
-  curLinear.value = payload.linear
-  curAngular.value = payload.angular
-  emit('send-cmd', { type: 'teleop', payload })
-})
-function cmdLinear(dir) { control.start(dir * stepLin.value, 0) }
-function cmdAngular(dir) { control.start(0, dir * stepAng.value) }
-function stopCmd() {
-  control.stop()
-  curLinear.value = curAngular.value = 0
-}
-function hidden() { if (document.hidden) stopCmd() }
-watch(isLocked, locked => { if (locked) stopCmd() }, { flush: 'sync' })
+const control = manualControl(
+  () => !isLocked.value,
+  payload => emit('send-cmd', { type: 'teleop', payload }),
+  action => emit('send-cmd', { type: 'lift', payload: { action } }),
+)
+const { targetLinear, targetAngular, activeButton } = control
+function hidden() { if (document.hidden) control.stop() }
+function blurred() { control.stop() }
+watch(isLocked, locked => { if (locked) control.stop() }, { flush: 'sync' })
 onMounted(() => {
-  window.addEventListener('pointerup', stopCmd)
-  window.addEventListener('pointercancel', stopCmd)
-  window.addEventListener('blur', stopCmd)
+  control.start()
+  window.addEventListener('keydown', control.keydown)
+  window.addEventListener('blur', blurred)
   document.addEventListener('visibilitychange', hidden)
 })
 onBeforeUnmount(() => {
-  stopCmd()
-  window.removeEventListener('pointerup', stopCmd)
-  window.removeEventListener('pointercancel', stopCmd)
-  window.removeEventListener('blur', stopCmd)
+  control.dispose()
+  window.removeEventListener('keydown', control.keydown)
+  window.removeEventListener('blur', blurred)
   document.removeEventListener('visibilitychange', hidden)
 })
 
 // ── Lift ─────────────────────────────────────────────────────
 const liftPct    = computed(() => s.value.lift?.height_pct ?? 0)
 const liftMoving = computed(() => s.value.lift?.moving ?? false)
-
-function sendLift(action) {
-  if (isLocked.value) return
-  emit('send-cmd', { type: 'lift', payload: { action } })
-}
 
 // ── Camera ───────────────────────────────────────────────────
 const activeCamUrl = computed(() => {
@@ -276,24 +250,6 @@ const activeCamUrl = computed(() => {
 /* Card header row */
 .card-header-row { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 8px; }
 
-/* ── Hassasiyet stepper (3B) ── */
-.sens-stepper {
-  display: flex; align-items: center; gap: 5px; flex-shrink: 0;
-}
-.sens-stepper__label { font-size: 10px; color: var(--text-dim); white-space: nowrap; }
-.sens-step-btn {
-  width: 22px; height: 22px; border-radius: 6px; font-size: 15px; font-weight: 700;
-  border: 1px solid var(--border); background: var(--panel-2); color: var(--text-dim);
-  cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center;
-  transition: all .12s; line-height: 1;
-}
-.sens-step-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-.sens-step-btn:disabled { opacity: .35; cursor: default; }
-.sens-step-val {
-  min-width: 36px; text-align: center; font-size: 12px; font-weight: 700;
-  color: var(--accent); font-variant-numeric: tabular-nums;
-}
-
 /* ── D-pad ── */
 .dpad-container { display: flex; justify-content: center; margin: 12px 0; }
 .dpad {
@@ -309,6 +265,8 @@ const activeCamUrl = computed(() => {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
 }
 .dpad-btn:hover:not(:disabled) { background: rgba(59,130,246,.15); color: var(--accent); border-color: var(--accent); }
+.dpad-btn.key-active, .lift-btn.key-active { background: rgba(59,130,246,.27); color: var(--accent); border-color: var(--accent); box-shadow: 0 0 12px rgba(59,130,246,.3); }
+.dpad-stop.key-active { background: rgba(239,68,68,.3); color: var(--red); border-color: var(--red); }
 .dpad-btn:disabled { opacity: .35; cursor: default; }
 .dpad-up    { grid-column: 2; grid-row: 1; }
 .dpad-left  { grid-column: 1; grid-row: 2; }
@@ -325,6 +283,11 @@ const activeCamUrl = computed(() => {
   font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums;
 }
 .vel-display strong { color: var(--text); }
+.shortcuts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 10px; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--text-dim); font-size: 10px; }
+.shortcuts strong { grid-column: 1 / -1; color: var(--text); font-size: 11px; }
+.shortcuts span { min-width: 0; }
+.shortcuts kbd { display: inline-block; padding: 2px 4px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel-2); color: var(--text); font: inherit; font-weight: 700; white-space: nowrap; }
+@media (max-width: 1050px) { .shortcuts { grid-template-columns: 1fr; } }
 
 /* ── Çatal Kontrolü (3A) ── */
 .lift-layout { display: flex; gap: 14px; align-items: stretch; margin-bottom: 12px; }

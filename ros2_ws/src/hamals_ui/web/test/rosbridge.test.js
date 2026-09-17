@@ -14,7 +14,7 @@ function setup(t) {
     constructor(options) { Object.assign(this, options); topics.push(this) }
     subscribe(cb) { this.cb = cb }
     unsubscribe() { this.cb = null }
-    publish(msg) { sent.push(msg) }
+    publish(msg) { sent.push({ topic: this.name, msg }) }
   }
   class Message { constructor(data) { Object.assign(this, data) } }
   const bridge = useRosbridge('ws://test', { Ros, Topic, Message })
@@ -24,13 +24,20 @@ function setup(t) {
   const receive = (mode = 'manual', ts = Date.now() / 1000) => topics.findLast(x => x.name === '/ui/state').cb({ data: JSON.stringify({ meta: { mode: 'live', ts, sources: { '/switch/mode': { age_s: 0 } } }, switch: { mode } }) })
   return { bridge, clients, topics, sent, connect, receive }
 }
-test('provider sends /ui/cmd with current bridge lease only in manual', t => {
+test('provider publishes Twist and fork String directly in manual mode', t => {
   const f = setup(t); f.connect(); f.receive()
   assert.equal(f.bridge.sendCmd({ type: 'teleop', payload: { linear: 0.1, angular: 0 } }), true)
-  assert.equal(JSON.parse(f.sent.at(-1).data).payload.state_ts, 100)
-  assert.equal(f.topics.find(x => x.name === '/ui/cmd').reconnect_on_close, false)
+  assert.equal(f.sent.at(-1).topic, '/cmd_vel/manual_teleop')
+  assert.deepEqual(f.sent.at(-1).msg.linear, { x: 0.1, y: 0, z: 0 })
+  assert.equal(f.topics.find(x => x.name === '/cmd_vel/manual_teleop').messageType, 'geometry_msgs/msg/Twist')
+  assert.equal(f.bridge.sendCmd({ type: 'lift', payload: { action: 'up' } }), true)
+  assert.equal(f.sent.at(-1).topic, '/mcu/fork_cmd')
+  assert.equal(f.sent.at(-1).msg.data, 'UP')
+  assert.equal(f.topics.find(x => x.name === '/mcu/fork_cmd').messageType, 'std_msgs/msg/String')
   f.receive('auto', 100.1)
-  assert.equal(f.bridge.sendCmd({ type: 'teleop', payload: { linear: 0, angular: 0 } }), false)
+  assert.equal(f.bridge.sendCmd({ type: 'teleop', payload: { linear: 0.1, angular: 0 } }), false)
+  assert.equal(f.bridge.sendCmd({ type: 'lift', payload: { action: 'down' } }), false)
+  assert.equal(f.bridge.sendCmd({ type: 'teleop', payload: { linear: 0, angular: 0 } }), true)
 })
 test('disconnect marks stale, reconnect subscribes once and waits for new data', t => {
   const f = setup(t); f.connect(); f.receive()
@@ -52,7 +59,8 @@ test('repeated or malformed frames do not keep stale state live', t => {
 })
 test('unmount disconnect sends best-effort zero and never reconnects', t => {
   const f = setup(t); f.connect(); f.receive(); f.bridge.disconnect()
-  assert.deepEqual(JSON.parse(f.sent.at(-1).data).payload, { linear: 0, angular: 0, state_ts: 100 })
+  assert.equal(f.sent.at(-1).topic, '/cmd_vel/manual_teleop')
+  assert.deepEqual({ ...f.sent.at(-1).msg }, { linear: { x: 0, y: 0, z: 0 }, angular: { x: 0, y: 0, z: 0 } })
   t.mock.timers.tick(10000); assert.equal(f.clients.length, 1)
 })
 test('live dispatcher rejects local mode and E-STOP commands', t => {

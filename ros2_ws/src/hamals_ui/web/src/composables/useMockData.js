@@ -432,6 +432,8 @@ export function useMockData() {
         } else if (action === 'down') {
           s.lift.height_pct = Math.max(0, s.lift.height_pct - 10)
           s.lift.moving = true
+        } else if (action === 'stop') {
+          s.lift.moving = false
         }
         break
       }
