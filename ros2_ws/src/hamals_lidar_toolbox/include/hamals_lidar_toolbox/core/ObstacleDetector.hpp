@@ -24,12 +24,14 @@ public:
     ObstacleDetector() = default;
 
     void setDangerDistance(double distance);
+    void setRegionDangerDistance(const std::string& region, double distance);
 
     ObstacleMap detect(
         const std::unordered_map<std::string, RegionMetrics>& metrics) const;
 
 private:
     double danger_distance_{0.5};
+    std::unordered_map<std::string, double> region_danger_distances_;
 };
 
 } // namespace core

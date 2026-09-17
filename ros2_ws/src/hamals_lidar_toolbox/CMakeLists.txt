@@ -101,6 +101,10 @@ if(BUILD_TESTING)
   target_link_libraries(test_fork_mask hamals_lidar_toolbox_core)
   add_test(NAME test_fork_mask COMMAND test_fork_mask)
 
+  add_executable(test_region_danger_distance test/test_region_danger_distance.cpp)
+  target_link_libraries(test_region_danger_distance hamals_lidar_toolbox_core)
+  add_test(NAME test_region_danger_distance COMMAND test_region_danger_distance)
+
   find_package(ament_lint_auto REQUIRED)
   set(ament_cmake_copyright_FOUND TRUE)
   set(ament_cmake_cpplint_FOUND TRUE)

@@ -9,21 +9,25 @@ scan_processor_node:
       max_range: 30.0
 
     regions:
-      front:
+      rear:
         min: -0.785    # -45°
         max:  0.785    # +45°
-
-      left:
-        min:  0.785
-        max:  2.356    # 135°
+        danger_distance: 0.40
 
       right:
+        min:  0.785
+        max:  2.356    # 135°
+        danger_distance: 0.17
+
+      left:
         min: -2.356
         max: -0.785
+        danger_distance: 0.17
 
-      rear:
+      front:
         min:  2.356
         max: -2.356
+        danger_distance: 0.17
 
     fork_mask:
       enabled: true

@@ -8,7 +8,7 @@ using std::placeholders::_1;
 ScanProcessorNode::ScanProcessorNode(const rclcpp::NodeOptions& options)
 : rclcpp::Node("scan_processor_node", options)
 {
-    this->declare_parameter<double>("danger_distance");
+    this->declare_parameter<double>("danger_distance", 0.17);
     this->declare_parameter<double>("scan.min_range");
     this->declare_parameter<double>("scan.max_range");
 
@@ -29,6 +29,12 @@ ScanProcessorNode::ScanProcessorNode(const rclcpp::NodeOptions& options)
 
     double danger_distance =
         this->get_parameter("danger_distance").as_double();
+
+    for (const auto* region : {"front", "left", "right", "rear"})
+    {
+        this->declare_parameter<double>(
+            std::string("regions.") + region + ".danger_distance", danger_distance);
+    }
 
     double min_range =
         this->get_parameter("scan.min_range").as_double();
@@ -66,6 +72,12 @@ ScanProcessorNode::ScanProcessorNode(const rclcpp::NodeOptions& options)
         hamals_lidar_toolbox::core::ObstacleDetector>();
 
     obstacle_detector_->setDangerDistance(danger_distance);
+    for (const auto* region : {"front", "left", "right", "rear"})
+    {
+        obstacle_detector_->setRegionDangerDistance(
+            region,
+            this->get_parameter(std::string("regions.") + region + ".danger_distance").as_double());
+    }
 
     if (debug_rviz_enabled_)
     {

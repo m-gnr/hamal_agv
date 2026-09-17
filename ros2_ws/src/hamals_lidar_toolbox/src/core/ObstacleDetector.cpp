@@ -13,6 +13,11 @@ void ObstacleDetector::setDangerDistance(double distance)
     danger_distance_ = distance;
 }
 
+void ObstacleDetector::setRegionDangerDistance(const std::string& region, double distance)
+{
+    region_danger_distances_[region] = distance;
+}
+
 ObstacleMap ObstacleDetector::detect(
     const std::unordered_map<std::string, RegionMetrics>& metrics) const
 {
@@ -25,6 +30,9 @@ ObstacleMap ObstacleDetector::detect(
 
     for (const auto& [region, region_metrics] : metrics)
     {
+        const auto threshold = region_danger_distances_.find(region);
+        const double danger_distance = threshold == region_danger_distances_.end()
+            ? danger_distance_ : threshold->second;
         ObstacleState state;
         state.min_distance = region_metrics.min_distance;
 
@@ -36,7 +44,7 @@ ObstacleMap ObstacleDetector::detect(
         {
             state.has_obstacle = false;
         }
-        else if (region_metrics.min_distance < danger_distance_)
+        else if (region_metrics.min_distance < danger_distance)
         {
             state.has_obstacle = true;
         }
