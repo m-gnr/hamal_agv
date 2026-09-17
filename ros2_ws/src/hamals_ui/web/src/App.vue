@@ -51,7 +51,7 @@
       <SidebarNav :active="activeTab" @change="activeTab = $event" />
 
       <main class="main-content">
-        <LivePanel v-if="!isMock" :state="state" :physical-mode="physicalMode" :tab="activeTab" :map-feed="bridge.mapFeed" :map-connected="bridge.connected.value" :map-ready="bridge.mapReady.value" :save-pending="bridge.savePending.value" :save-result="bridge.saveResult.value" @save-map="bridge.saveMap()" @send-cmd="sendCmd" />
+        <LivePanel v-if="!isMock" :state="state" :plc-state="bridge.plcState.value" :mission-state="bridge.missionState.value" :ros-connected="bridge.connected.value" :physical-mode="physicalMode" :tab="activeTab" :map-feed="bridge.mapFeed" :map-connected="bridge.connected.value" :map-ready="bridge.mapReady.value" :save-pending="bridge.savePending.value" :save-result="bridge.saveResult.value" @save-map="bridge.saveMap()" @send-cmd="sendCmd" />
         <template v-else>
         <TabDashboard v-if="activeTab === 'dashboard'" :state="state" @send-cmd="sendCmd" />
         <TabMap       v-if="activeTab === 'map'"       :state="state" :map-feed="mockMapFeed" :map-connected="true" @send-cmd="sendCmd" />

@@ -24,7 +24,8 @@ class DoorEvent(Message):
 
 
 class PlcState(Message):
-    CONNECTED, ERROR = 1, 2
+    CONNECTED, ERROR = 2, 3
+    CONTROL_UNKNOWN, CONTROL_WAIT, CONTROL_START_CONTINUE = 0, 1, 2
 
 
 class Publisher:
@@ -63,6 +64,9 @@ def bridge():
     node._door_task_id = 'task-1'
     node._door_outbound = True
     node._last_valid_rx = None
+    node._last_tx_at = None
+    node._rx_pickup = node._rx_dropoff = 0
+    node._rx_control = PlcState.CONTROL_UNKNOWN
     node.active_task_id = node.last_rx = node.last_tx = ''
     node._status_byte = 1
     node._cur_pickup = node._cur_dropoff = 0
@@ -160,3 +164,20 @@ def test_plc_pause_status_and_tx_format():
                                 phase='MOVE_EMPTY', pickup_id='A1', dropoff_id='B2'))
     assert n._status_byte == 5
     assert struct.unpack('<BBBhh', n._build_tx()) == (5, 1, 2, 0, 0)
+
+
+def test_structured_telemetry_and_age():
+    n = bridge()
+    rx(n, 1)
+    n._last_tx_at = time.monotonic() - 0.4
+    n._mission_state_cb(Message(state=MissionState.PAUSED_PLC, carrying_load=False,
+                                phase='MOVE_EMPTY', pickup_id='A1', dropoff_id='B2'))
+    n._publish_state()
+    msg = n.state_pub.messages[-1]
+    assert (msg.rx_pickup, msg.rx_dropoff, msg.rx_control) == (1, 2, PlcState.CONTROL_WAIT)
+    assert msg.tx_status == 5 and msg.transport == 'udp'
+    assert 0 <= msg.rx_age_sec < 1 and 0.4 <= msg.tx_age_sec < 1
+    n._last_valid_rx = time.monotonic() - 2
+    n._publish_state()
+    msg = n.state_pub.messages[-1]
+    assert msg.connection_state == PlcState.ERROR and msg.rx_age_sec >= 2

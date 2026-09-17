@@ -1,7 +1,7 @@
 <template>
   <div class="live-panel">
     <div v-if="state.meta.stale && tab !== 'manual' && tab !== 'map'" class="notice warn">
-      {{ state.connection.rosbridge ? 'Stale: yeni canlı veri bekleniyor' : 'Disconnected: ROS bağlantısı yok' }}
+      {{ state.connection.rosbridge ? 'Diğer kartlar: /ui/state bayat (PLC doğrudan izlenir)' : 'Disconnected: ROS bağlantısı yok' }}
       · Son /ui/state yaşı: {{ Number.isFinite(state.meta.ageMs) ? (state.meta.ageMs / 1000).toFixed(1) + ' s' : 'unknown' }}
     </div>
     <div v-if="state.meta.mismatch && tab !== 'manual'" class="notice danger">Mock backend reddedildi. Köprüyü mode:=live ile başlatın.</div>
@@ -34,32 +34,24 @@
             <dt>{{ key }}</dt><dd>{{ value('/mission/state', state.mission?.[key]) }}</dd>
           </template>
         </dl>
-        <form v-if="tab === 'mission'" @submit.prevent="command('start_mission', task)">
+        <form v-if="tab === 'mission' && plcState?.transport === 'mock'" @submit.prevent="command('start_mission', task)">
           <label>Task ID<input v-model.trim="task.task_id" required></label>
           <label>Pickup ID<input v-model.trim="task.pickup_id" required placeholder="World model istasyon ID"></label>
           <label>Dropoff ID<input v-model.trim="task.dropoff_id" required placeholder="World model istasyon ID"></label>
           <button :disabled="!canStart">Başlat</button>
-          <p>İstasyonlar mission server tarafından doğrulanır. Başlatmak için canlı fiziksel AUTO modu gerekir.</p>
+          <p>Doğrudan mission testi; PLC WAIT/START protokol testi değildir. İstasyonlar mission server tarafından doğrulanır.</p>
         </form>
-        <div v-if="tab === 'mission'" class="buttons">
+        <div v-if="tab === 'mission' && plcState?.transport === 'mock'" class="buttons">
           <button :disabled="!available('pause_mission')" @click="command('pause_mission', { reason: 'operator pause' })">Pause</button>
           <button :disabled="!available('resume_mission')" @click="command('resume_mission', { operator_id: 'ui' })">Resume</button>
           <button :disabled="!available('cancel_mission')" @click="command('cancel_mission')">Cancel</button>
         </div>
-        <p v-if="tab === 'mission'">Cancel yalnız bu köprüden başlatılmış action goal için kullanılabilir.</p>
+        <p v-if="tab === 'mission' && plcState?.transport === 'mock'">Cancel yalnız bu köprüden başlatılmış action goal için kullanılabilir.</p>
+        <p v-if="tab === 'mission' && plcState?.transport === 'udp'">UDP modunda görev komutları PLC yetkisindedir; GUI yalnızca izler.</p>
         <p v-if="state.command_result" :class="state.meta.stale ? 'warn' : ''">Son komut yanıtı: {{ state.command_result.command }} · {{ state.command_result.status }} · {{ state.command_result.message }}</p>
       </Card>
 
-      <Card v-if="show('dashboard', 'mission', 'settings')">
-        <template #header><SectionTitle>PLC · {{ health('/plc/state') }}</SectionTitle></template>
-        <dl>
-          <dt>Bağlantı</dt><dd>{{ value('/plc/state', plcConnection) }}</dd>
-          <template v-for="key in ['door_permission', 'active_task_id', 'last_tx', 'last_rx', 'error_message']" :key="key">
-            <dt>{{ key }}</dt><dd>{{ value('/plc/state', state.plc?.[key]) }}</dd>
-          </template>
-          <dt>Runtime config</dt><dd>{{ plcConfig }}</dd>
-        </dl>
-      </Card>
+      <PlcStatusPanel v-if="show('dashboard', 'mission', 'settings')" :plc="plcState" :mission="missionState" :ros-connected="rosConnected" />
 
       <Card v-if="show('dashboard', 'map')" :class="['map-card', { 'map-card-full': tab === 'map' }]">
         <div v-if="tab === 'map'" class="map-toolbar">
@@ -117,8 +109,9 @@ import SectionTitle from './SectionTitle.vue'
 import TabManual from './TabManual.vue'
 import CameraStream from './CameraStream.vue'
 import MapViewer from './MapViewer.vue'
+import PlcStatusPanel from './PlcStatusPanel.vue'
 import { freshness, qrActive, safetySummary } from '../composables/liveState.js'
-const props = defineProps({ state: { type: Object, required: true }, tab: String, physicalMode: { type: String, default: 'unknown' }, mapFeed: { type: Object, required: true }, mapConnected: Boolean, mapReady: Boolean, savePending: Boolean, saveResult: Object })
+const props = defineProps({ state: { type: Object, required: true }, plcState: Object, missionState: Object, rosConnected: Boolean, tab: String, physicalMode: { type: String, default: 'unknown' }, mapFeed: { type: Object, required: true }, mapConnected: Boolean, mapReady: Boolean, savePending: Boolean, saveResult: Object })
 const emit = defineEmits(['send-cmd', 'save-map'])
 const cameraTopic = computed(() => props.state.cameras?.topic || '/camera/image_raw/compressed')
 const task = reactive({ task_id: '', pickup_id: '', dropoff_id: '' })
@@ -136,14 +129,6 @@ function value(topic, val) {
 const summary = computed(() => safetySummary(props.state))
 const available = type => !props.state.meta.stale && props.state.controls?.[type] === true
 const canStart = computed(() => available('start_mission') && health('/switch/mode', 1) === 'live' && props.state.switch?.mode === 'auto' && Object.values(task).every(Boolean))
-const plcConnection = computed(() => ({ 0: 'Disconnected', 1: 'Connecting', 2: 'Connected', 3: 'Error' })[props.state.plc?.connection_state] || 'unknown')
-const plcConfig = computed(() => {
-  const config = props.state.plc?.config
-  if (!config) return 'unknown'
-  const age = props.state.meta.ts - config.read_at + props.state.meta.ageMs / 1000
-  if (props.state.meta.stale || age > 10) return 'stale'
-  return `${config.transport ?? 'unknown'} · ${config.ip ?? 'unknown'}:${config.port ?? 'unknown'}`
-})
 function command(type, payload = {}) { emit('send-cmd', { type, payload: { ...payload } }) }
 </script>
 <style scoped>

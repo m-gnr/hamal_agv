@@ -2,6 +2,9 @@ uint8 DISCONNECTED=0
 uint8 CONNECTING=1
 uint8 CONNECTED=2
 uint8 ERROR=3
+uint8 CONTROL_UNKNOWN=0
+uint8 CONTROL_WAIT=1
+uint8 CONTROL_START_CONTINUE=2
 
 builtin_interfaces/Time stamp
 uint8 connection_state
@@ -10,3 +13,10 @@ string active_task_id
 string last_rx
 string last_tx
 string error_message
+string transport
+uint8 rx_pickup
+uint8 rx_dropoff
+uint8 rx_control
+uint8 tx_status
+float32 rx_age_sec
+float32 tx_age_sec

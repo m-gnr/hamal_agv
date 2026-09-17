@@ -65,6 +65,10 @@ class PlcBridgeNode(Node):
         self._door_outbound = True
         self._door_permission_active = False
         self._last_valid_rx = None
+        self._last_tx_at = None
+        self._rx_pickup = 0
+        self._rx_dropoff = 0
+        self._rx_control = PlcState.CONTROL_UNKNOWN
         self._sock = None
         self._stop = False
 
@@ -99,6 +103,8 @@ class PlcBridgeNode(Node):
             t0 = time.monotonic()
             try:
                 self._sock.sendto(self._build_tx(), (ip, port))
+                with self._lock:
+                    self._last_tx_at = time.monotonic()
             except OSError as exc:
                 self.get_logger().warning(f'PLC TX error: {exc}')
             dt = period - (time.monotonic() - t0)
@@ -155,6 +161,9 @@ class PlcBridgeNode(Node):
 
         with self._lock:
             self._last_valid_rx = time.monotonic()
+            self._rx_pickup = pickup_b
+            self._rx_dropoff = dropoff_b
+            self._rx_control = control
             self.last_rx = f'RX pu={pickup_b} do={dropoff_b} ctrl={control}'
             waiting_door = self._at_door
             if waiting_door:
@@ -316,19 +325,23 @@ class PlcBridgeNode(Node):
         msg = PlcState()
         msg.stamp = self.get_clock().now().to_msg()
         transport = str(self.get_parameter('transport').value)
-        if transport == 'udp':
-            with self._lock:
-                connected = self._is_connected()
+        msg.transport = transport
+        with self._lock:
+            now = time.monotonic()
+            connected = self._is_connected() if transport == 'udp' else True
             msg.connection_state = PlcState.CONNECTED if connected else PlcState.ERROR
             if not connected:
                 msg.error_message = 'PLC UDP: baglanti yok / RX timeout'
-        else:
-            msg.connection_state = PlcState.CONNECTED
-        with self._lock:
             msg.door_permission = self._door_permission_active
             msg.active_task_id = self.active_task_id
             msg.last_rx = self.last_rx
             msg.last_tx = self.last_tx
+            msg.rx_pickup = self._rx_pickup
+            msg.rx_dropoff = self._rx_dropoff
+            msg.rx_control = self._rx_control
+            msg.tx_status = self._status_byte
+            msg.rx_age_sec = -1.0 if self._last_valid_rx is None else now - self._last_valid_rx
+            msg.tx_age_sec = -1.0 if self._last_tx_at is None else now - self._last_tx_at
         self.state_pub.publish(msg)
 
     def destroy_node(self):

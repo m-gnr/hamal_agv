@@ -364,6 +364,7 @@ class UIBridgeNode(Node):
             mission["fsm"] = {
                 0: "booting", 1: "idle", 2: "executing", 3: "waiting_plc",
                 4: "paused_obstacle", 5: "paused_manual", 6: "error", 7: "emergency_stop",
+                8: "paused_plc",
             }.get(msg.state, "unknown")
             mission["phase_normalized"] = msg.phase.lower() if msg.phase else "unknown"
             mission["timer"] = {"elapsed_s": msg.elapsed_s}

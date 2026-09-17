@@ -5,6 +5,8 @@ import { createMapFeed } from './occupancyGrid.js'
 
 export function useRosbridge(url, transport = ROSLIB) {
   const raw = shallowRef(null)
+  const plcState = shallowRef(null)
+  const missionState = shallowRef(null)
   const connected = ref(false)
   const physicalMode = ref('unknown')
   const ros = shallowRef(null)
@@ -15,7 +17,7 @@ export function useRosbridge(url, transport = ROSLIB) {
   const savePending = ref(false)
   const saveResult = ref(null)
   const state = computed(() => liveState(raw.value, connected.value, receivedAt.value, now.value))
-  let stateTopic, modeTopic, mapTopic, cmdTopic, motionTopic, forkTopic, reconnectTimer, ageTimer, stopped = true
+  let stateTopic, modeTopic, mapTopic, plcTopic, missionTopic, cmdTopic, motionTopic, forkTopic, reconnectTimer, ageTimer, stopped = true
   let lastStamp = null
   let finishSave = null
 
@@ -56,6 +58,7 @@ export function useRosbridge(url, transport = ROSLIB) {
     return true
   }
   function sendCmd(cmd) {
+    if (['start_mission', 'pause_mission', 'resume_mission', 'cancel_mission'].includes(cmd.type) && plcState.value?.transport !== 'mock') return false
     const current = liveState(raw.value, connected.value, receivedAt.value, Date.now())
     if (['switch_mode', 'estop', 'estop_ack'].includes(cmd.type)) return false
     if (cmd.type === 'teleop') {
@@ -92,6 +95,8 @@ export function useRosbridge(url, transport = ROSLIB) {
       mapReady.value = false
       lastStamp = null
       physicalMode.value = 'unknown'
+      plcState.value = null
+      missionState.value = null
       connected.value = true
       // yous: reconnect_on_close:false KALDIRILDI — roslib 1.4.0 bug'ı subscribe/advertise'da
       //       "Cannot read properties of undefined (reading 'encoder')" fırlatıyor (callOnConnection this-binding kaybı).
@@ -121,6 +126,16 @@ export function useRosbridge(url, transport = ROSLIB) {
           now.value = Date.now()
         } catch { /* malformed state cannot refresh the lease */ }
       })
+      plcTopic = new transport.Topic({ ros: client, name: '/plc/state', messageType: 'hamals_interfaces/msg/PlcState' })
+      plcTopic.subscribe(msg => {
+        if (client !== ros.value || stopped || !connected.value) return
+        plcState.value = msg
+      })
+      missionTopic = new transport.Topic({ ros: client, name: '/mission/state', messageType: 'hamals_interfaces/msg/MissionState' })
+      missionTopic.subscribe(msg => {
+        if (client !== ros.value || stopped || !connected.value) return
+        missionState.value = msg
+      })
       mapTopic = new transport.Topic({ ros: client, name: '/map', messageType: 'nav_msgs/msg/OccupancyGrid' })
       mapTopic.subscribe(msg => {
         if (client !== ros.value || stopped || !connected.value) return
@@ -137,10 +152,14 @@ export function useRosbridge(url, transport = ROSLIB) {
       finishSave?.({ success: false, message: 'ROS bağlantısı kesildi.' })
       physicalMode.value = 'unknown'
       receivedAt.value = null
+      plcState.value = null
+      missionState.value = null
       if (stateTopic) stateTopic.unsubscribe()
       if (modeTopic) modeTopic.unsubscribe()
       if (mapTopic) mapTopic.unsubscribe()
-      stateTopic = modeTopic = mapTopic = null
+      if (plcTopic) plcTopic.unsubscribe()
+      if (missionTopic) missionTopic.unsubscribe()
+      stateTopic = modeTopic = mapTopic = plcTopic = missionTopic = null
       motionTopic = forkTopic = null
       if (!stopped && !reconnectTimer) reconnectTimer = setTimeout(() => {
         reconnectTimer = null
@@ -166,14 +185,18 @@ export function useRosbridge(url, transport = ROSLIB) {
     stateTopic?.unsubscribe()
     modeTopic?.unsubscribe()
     mapTopic?.unsubscribe()
-    stateTopic = modeTopic = mapTopic = null
+    plcTopic?.unsubscribe()
+    missionTopic?.unsubscribe()
+    stateTopic = modeTopic = mapTopic = plcTopic = missionTopic = null
     motionTopic = forkTopic = null
     connected.value = false
+    plcState.value = null
+    missionState.value = null
     mapReady.value = false
     finishSave?.({ success: false, message: 'ROS bağlantısı kesildi.' })
     physicalMode.value = 'unknown'
     ros.value?.close()
     ros.value = null
   }
-  return { state, physicalMode, connected, ros, mapFeed, mapReady, savePending, saveResult, saveMap, connect, disconnect, publish, sendCmd }
+  return { state, plcState, missionState, physicalMode, connected, ros, mapFeed, mapReady, savePending, saveResult, saveMap, connect, disconnect, publish, sendCmd }
 }
