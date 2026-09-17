@@ -44,7 +44,6 @@ private:
     std::unique_ptr<hamals_lidar_toolbox::core::ScanSegmenter> segmenter_;
     std::unique_ptr<hamals_lidar_toolbox::core::ObstacleDetector> obstacle_detector_;
     std::unique_ptr<hamals_lidar_toolbox::core::ForkMaskState> fork_mask_state_;
-    hamals_lidar_toolbox::core::ScanSegmenter::Region fork_mask_angles_;
     bool fork_mask_was_active_{false};
 
     bool debug_rviz_enabled_{false};

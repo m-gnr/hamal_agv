@@ -23,8 +23,6 @@ ScanProcessorNode::ScanProcessorNode(const rclcpp::NodeOptions& options)
 
     this->declare_parameter<bool>("debug.enable_rviz", false);
     this->declare_parameter<bool>("fork_mask.enabled", true);
-    this->declare_parameter<double>("fork_mask.min", -0.20);
-    this->declare_parameter<double>("fork_mask.max", 0.20);
     this->declare_parameter<double>("fork_mask.state_timeout", 0.5);
 
     double danger_distance =
@@ -47,16 +45,9 @@ ScanProcessorNode::ScanProcessorNode(const rclcpp::NodeOptions& options)
 
     const double state_timeout =
         this->get_parameter("fork_mask.state_timeout").as_double();
-    fork_mask_angles_ = {
-        "fork_mask",
-        this->get_parameter("fork_mask.min").as_double(),
-        this->get_parameter("fork_mask.max").as_double()
-    };
-    if (!std::isfinite(state_timeout) || state_timeout < 0.0 ||
-        !std::isfinite(fork_mask_angles_.min_angle) ||
-        !std::isfinite(fork_mask_angles_.max_angle))
+    if (!std::isfinite(state_timeout) || state_timeout < 0.0)
     {
-        throw std::invalid_argument("fork_mask parameters must be finite and timeout nonnegative");
+        throw std::invalid_argument("fork_mask.state_timeout must be finite and nonnegative");
     }
     fork_mask_state_ = std::make_unique<
         hamals_lidar_toolbox::core::ForkMaskState>(
@@ -91,10 +82,10 @@ ScanProcessorNode::ScanProcessorNode(const rclcpp::NodeOptions& options)
             rclcpp::SensorDataQoS(),
             std::bind(&ScanProcessorNode::scanCallback, this, _1));
 
-    // ForkNode publishes with the default reliable, keep-last depth 10 QoS.
+    // The serial bridge publishes the MCU fork state with reliable, keep-last depth 10 QoS.
     fork_state_subscriber_ =
         this->create_subscription<hamals_interfaces::msg::ForkState>(
-            "/fork/state", 10,
+            "/mcu/fork_state", 10,
             std::bind(&ScanProcessorNode::forkStateCallback, this, _1));
 
     obstacle_state_pub_ =
@@ -140,8 +131,7 @@ void ScanProcessorNode::scanCallback(
         fork_mask_was_active_ = fork_mask_active;
     }
 
-    auto segments = segmenter_->segment(
-        scan, fork_mask_active ? &fork_mask_angles_ : nullptr);
+    auto segments = segmenter_->segment(scan, fork_mask_active ? "front" : "");
 
     auto clean_scan = sanitizer_->sanitize(scan);
 

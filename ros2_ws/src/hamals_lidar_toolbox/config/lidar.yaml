@@ -12,7 +12,7 @@ scan_processor_node:
       rear:
         min: -0.785    # -45°
         max:  0.785    # +45°
-        danger_distance: 0.40
+        danger_distance: 0.45
 
       right:
         min:  0.785
@@ -24,15 +24,13 @@ scan_processor_node:
         max: -0.785
         danger_distance: 0.17
 
-      front:
+      front: # FORK MASK AREA
         min:  2.356
         max: -2.356
         danger_distance: 0.17
 
     fork_mask:
       enabled: true
-      min: -0.20
-      max: 0.20
       state_timeout: 0.5
 
     debug:

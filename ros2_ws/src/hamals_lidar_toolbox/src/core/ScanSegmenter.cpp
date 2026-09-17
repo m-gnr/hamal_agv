@@ -38,7 +38,7 @@ ScanSegmenter::ScanSegmenter(const std::vector<Region>& regions)
 }
 
 std::unordered_map<std::string, std::vector<std::size_t>>
-ScanSegmenter::segment(const ScanData& scan, const Region* excluded_angles) const
+ScanSegmenter::segment(const ScanData& scan, const std::string& excluded_region) const
 {
     std::unordered_map<std::string, std::vector<std::size_t>> result;
 
@@ -56,14 +56,12 @@ ScanSegmenter::segment(const ScanData& scan, const Region* excluded_angles) cons
         double angle = angle_min + static_cast<double>(i) * angle_inc;
         double normalized_angle = normalizeAngle(angle);
 
-        // Drop masked beams before any region receives their indices.
-        if (excluded_angles && angleInRegion(normalized_angle, *excluded_angles))
-        {
-            continue;
-        }
-
         for (const auto& region : regions_)
         {
+            if (region.name == excluded_region)
+            {
+                continue;
+            }
             if (angleInRegion(normalized_angle, region))
             {
                 result[region.name].push_back(i);
