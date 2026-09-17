@@ -119,7 +119,7 @@ class MissionNode(Node):
         self.create_subscription(
             Int32, '/line/error', self._line_error_cb, 10, callback_group=group)
         self.create_subscription(
-            Odometry, '/odom_raw', self._odom_received, 10, callback_group=group)
+            Odometry, '/odom', self._odom_received, 10, callback_group=group)
         self.station_client = self.create_client(
             GetStation, '/world_model/get_station', callback_group=group)
         self.door_client = self.create_client(

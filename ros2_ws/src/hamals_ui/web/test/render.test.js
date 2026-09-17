@@ -29,6 +29,22 @@ test('live header renders N/A and unknown mode without MANUEL fallback', async (
   assert.match(html, /N\/A/); assert.match(html, /Disconnected/)
   assert.doesNotMatch(html, /MANUEL|100%/)
 })
+test('map save button follows connection and /map, independent of stale state', async () => {
+  const state = liveState(null, true, null)
+  let html = await render(Panel, { tab: 'map', state, mapConnected: true, mapReady: false })
+  assert.match(html, /Kaydedilecek harita yok/)
+  assert.match(html, /disabled[^>]*>Haritayı Kaydet/)
+  html = await render(Panel, { tab: 'map', state, mapConnected: true, mapReady: true })
+  assert.match(html, /Haritayı Kaydet/)
+  assert.doesNotMatch(html, /disabled[^>]*>Haritayı Kaydet/)
+  html = await render(Panel, { tab: 'map', state, mapConnected: true, mapReady: true, savePending: true })
+  assert.match(html, /Kaydediliyor\.\.\./)
+  assert.match(html, /disabled[^>]*>Kaydediliyor/)
+  html = await render(Panel, { tab: 'map', state, mapConnected: false, mapReady: true,
+    saveResult: { success: false, message: 'disk full' } })
+  assert.match(html, /Harita kaydedilemedi: disk full/)
+  assert.match(html, /ROS bağlantısı yok/)
+})
 test('manual screen and physical mode label stay available without /ui/state', async () => {
   const state = liveState(null, true, null)
   const panel = await render(Panel, { tab: 'manual', state, physicalMode: 'manual' })

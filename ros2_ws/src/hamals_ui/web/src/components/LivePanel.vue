@@ -62,6 +62,15 @@
       </Card>
 
       <Card v-if="show('dashboard', 'map')" :class="['map-card', { 'map-card-full': tab === 'map' }]">
+        <div v-if="tab === 'map'" class="map-toolbar">
+          <strong>Harita &amp; Rota</strong>
+          <button :disabled="!mapConnected || !mapReady || savePending"
+                  :title="!mapConnected ? 'ROS bağlantısı yok' : !mapReady ? 'Kaydedilecek harita yok' : ''"
+                  @click="emit('save-map')">{{ savePending ? 'Kaydediliyor...' : 'Haritayı Kaydet' }}</button>
+        </div>
+        <p v-if="tab === 'map' && saveResult" role="status" :class="saveResult.success ? 'healthy' : 'danger'">
+          {{ saveResult.success ? 'Harita kaydedildi' : `Harita kaydedilemedi: ${saveResult.message}` }}
+        </p>
         <MapViewer :feed="mapFeed" :connected="mapConnected" />
         <dl>
           <dt>Pose frame</dt><dd>{{ value('/odom', state.pose?.frame_id) }} → {{ value('/odom', state.pose?.child_frame_id) }}</dd>
@@ -109,8 +118,8 @@ import TabManual from './TabManual.vue'
 import CameraStream from './CameraStream.vue'
 import MapViewer from './MapViewer.vue'
 import { freshness, qrActive, safetySummary } from '../composables/liveState.js'
-const props = defineProps({ state: { type: Object, required: true }, tab: String, physicalMode: { type: String, default: 'unknown' }, mapFeed: { type: Object, required: true }, mapConnected: Boolean })
-const emit = defineEmits(['send-cmd'])
+const props = defineProps({ state: { type: Object, required: true }, tab: String, physicalMode: { type: String, default: 'unknown' }, mapFeed: { type: Object, required: true }, mapConnected: Boolean, mapReady: Boolean, savePending: Boolean, saveResult: Object })
+const emit = defineEmits(['send-cmd', 'save-map'])
 const cameraTopic = computed(() => props.state.cameras?.topic || '/camera/image_raw/compressed')
 const task = reactive({ task_id: '', pickup_id: '', dropoff_id: '' })
 const show = (...tabs) => tabs.includes(props.tab)
@@ -148,6 +157,8 @@ dt, dd { margin: 0; overflow-wrap: anywhere; }
 dd { color: var(--text); }
 .healthy { color: var(--green); }.warn { color: var(--amber); }.danger { color: var(--red); }.unknown { color: var(--text-dim); }
 .map-card-full { grid-column: 1 / -1; }
+.map-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.map-toolbar strong { color: var(--text); font-size: 14px; }
 .map-card-full :deep(.map-viewer) { height: min(68vh, 720px); }
 form { margin-top: 18px; display: grid; gap: 8px; }
 label { display: grid; gap: 5px; font-size: 12px; }

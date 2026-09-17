@@ -38,18 +38,6 @@ def generate_launch_description():
 
         Node(
 
-            package='hamals_map_tools',
-
-            executable='map_save_server',
-
-            name='map_save_server',
-
-            output='screen',
-
-        ),
-
-        Node(
-
             package='hamals_manual_teleop',
 
             executable='teleop_node',

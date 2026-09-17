@@ -5,7 +5,7 @@ import { useRosbridge } from '../src/composables/useRosbridge.js'
 
 function setup(t) {
   t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: 100000 })
-  const clients = [], topics = [], sent = []
+  const clients = [], topics = [], sent = [], services = []
   class Ros extends EventEmitter {
     constructor() { super(); clients.push(this); this.isConnected = false }
     close() { this.isConnected = false; this.emit('close') }
@@ -17,13 +17,18 @@ function setup(t) {
     publish(msg) { sent.push({ topic: this.name, msg }) }
   }
   class Message { constructor(data) { Object.assign(this, data) } }
-  const bridge = useRosbridge('ws://test', { Ros, Topic, Message })
+  class Service {
+    constructor(options) { Object.assign(this, options); services.push(this) }
+    callService(request, success, failure) { this.request = request; this.success = success; this.failure = failure }
+  }
+  class ServiceRequest { constructor(data) { Object.assign(this, data) } }
+  const bridge = useRosbridge('ws://test', { Ros, Topic, Message, Service, ServiceRequest })
   t.after(() => bridge.disconnect())
   bridge.connect()
   const connect = () => { clients.at(-1).isConnected = true; clients.at(-1).emit('connection') }
   const receiveMode = mode => topics.findLast(x => x.name === '/switch/mode').cb({ data: mode })
   const receiveState = (mode = 'manual', ts = Date.now() / 1000) => topics.findLast(x => x.name === '/ui/state').cb({ data: JSON.stringify({ meta: { mode: 'live', ts, sources: { '/switch/mode': { age_s: 0 } } }, switch: { mode } }) })
-  return { bridge, clients, topics, sent, connect, receiveMode, receiveState }
+  return { bridge, clients, topics, sent, services, connect, receiveMode, receiveState }
 }
 test('direct mode opens manual controls without /ui/state and gates teleop and fork', t => {
   const f = setup(t); f.connect()
@@ -102,4 +107,39 @@ test('/map subscribes once per connection and survives missing /ui/state', t => 
   assert.equal(f.bridge.mapFeed.latest, message)
   t.mock.timers.tick(3000); f.connect()
   assert.equal(f.topics.filter(x => x.name === '/map').length, 2)
+})
+
+test('save requires a current /map, ignores stale /ui/state, and prevents concurrent calls', async t => {
+  const f = setup(t); f.connect()
+  assert.equal(f.bridge.mapReady.value, false)
+  assert.equal((await f.bridge.saveMap()).success, false)
+  assert.equal(f.services.length, 0)
+  f.topics.find(x => x.name === '/map').cb({ info: { width: 1, height: 1, resolution: 0.05 }, data: [0] })
+  assert.equal(f.bridge.state.value.meta.stale, true)
+  assert.equal(f.bridge.mapReady.value, true)
+  const pending = f.bridge.saveMap()
+  assert.equal(f.bridge.savePending.value, true)
+  assert.equal(f.services[0].name, '/map/save')
+  assert.equal(f.services[0].serviceType, 'std_srvs/srv/Trigger')
+  assert.deepEqual({ ...f.services[0].request }, {})
+  assert.equal((await f.bridge.saveMap()).success, false)
+  assert.equal(f.services.length, 1)
+  f.services[0].success({ success: true, message: 'saved' })
+  assert.equal((await pending).success, true)
+  assert.equal(f.bridge.savePending.value, false)
+  f.clients[0].close()
+  assert.equal(f.bridge.mapReady.value, false)
+  assert.equal((await f.bridge.saveMap()).success, false)
+})
+
+test('save errors and disconnect release the pending state', async t => {
+  const f = setup(t); f.connect()
+  f.topics.find(x => x.name === '/map').cb({ info: { width: 1, height: 1, resolution: 0.05 }, data: [0] })
+  let pending = f.bridge.saveMap()
+  f.services[0].success({ success: false, message: 'disk full' })
+  assert.deepEqual(await pending, { success: false, message: 'disk full' })
+  pending = f.bridge.saveMap()
+  f.clients[0].close()
+  assert.match((await pending).message, /bağlantısı kesildi/)
+  assert.equal(f.bridge.savePending.value, false)
 })

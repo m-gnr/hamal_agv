@@ -11,9 +11,42 @@ export function useRosbridge(url, transport = ROSLIB) {
   const receivedAt = ref(null)
   const now = ref(Date.now())
   const mapFeed = createMapFeed()
+  const mapReady = ref(false)
+  const savePending = ref(false)
+  const saveResult = ref(null)
   const state = computed(() => liveState(raw.value, connected.value, receivedAt.value, now.value))
   let stateTopic, modeTopic, mapTopic, cmdTopic, motionTopic, forkTopic, reconnectTimer, ageTimer, stopped = true
   let lastStamp = null
+  let finishSave = null
+
+  function saveMap() {
+    if (!connected.value || !ros.value?.isConnected || stopped || !mapReady.value || savePending.value) {
+      return Promise.resolve({ success: false, message: 'Kaydedilecek harita yok veya ROS bağlantısı yok.' })
+    }
+    savePending.value = true
+    saveResult.value = null
+    const client = ros.value
+    return new Promise(resolve => {
+      const timer = setTimeout(() => finish({ success: false, message: 'Harita kaydetme zaman aşımına uğradı.' }), 35000)
+      function finish(result) {
+        if (finishSave !== finish) return
+        clearTimeout(timer)
+        finishSave = null
+        savePending.value = false
+        saveResult.value = result
+        resolve(result)
+      }
+      finishSave = finish
+      try {
+        const service = new transport.Service({ ros: client, name: '/map/save', serviceType: 'std_srvs/srv/Trigger' })
+        service.callService(new transport.ServiceRequest({}),
+          response => finish({ success: response.success === true, message: response.message || '' }),
+          error => finish({ success: false, message: String(error || 'Servis çağrısı başarısız.') }))
+      } catch (error) {
+        finish({ success: false, message: String(error) })
+      }
+    })
+  }
 
   function publish(topic, type, data) {
     if (!connected.value || !ros.value?.isConnected || stopped) return false
@@ -56,6 +89,7 @@ export function useRosbridge(url, transport = ROSLIB) {
     client.on('connection', () => {
       if (stopped || lostHandled || connected.value || client !== ros.value) return
       receivedAt.value = null
+      mapReady.value = false
       lastStamp = null
       physicalMode.value = 'unknown'
       connected.value = true
@@ -91,6 +125,7 @@ export function useRosbridge(url, transport = ROSLIB) {
       mapTopic.subscribe(msg => {
         if (client !== ros.value || stopped || !connected.value) return
         mapFeed.push(msg)
+        mapReady.value = mapFeed.latest === msg
       })
     })
     function lost() {
@@ -98,6 +133,8 @@ export function useRosbridge(url, transport = ROSLIB) {
       lostHandled = true
       stopMotion() // Best effort only; a closed socket cannot deliver a stop.
       connected.value = false
+      mapReady.value = false
+      finishSave?.({ success: false, message: 'ROS bağlantısı kesildi.' })
       physicalMode.value = 'unknown'
       receivedAt.value = null
       if (stateTopic) stateTopic.unsubscribe()
@@ -132,9 +169,11 @@ export function useRosbridge(url, transport = ROSLIB) {
     stateTopic = modeTopic = mapTopic = null
     motionTopic = forkTopic = null
     connected.value = false
+    mapReady.value = false
+    finishSave?.({ success: false, message: 'ROS bağlantısı kesildi.' })
     physicalMode.value = 'unknown'
     ros.value?.close()
     ros.value = null
   }
-  return { state, physicalMode, connected, ros, mapFeed, connect, disconnect, publish, sendCmd }
+  return { state, physicalMode, connected, ros, mapFeed, mapReady, savePending, saveResult, saveMap, connect, disconnect, publish, sendCmd }
 }

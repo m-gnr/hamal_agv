@@ -65,6 +65,9 @@
           <button class="ctrl-btn" @click="send('define_route', {})">
             <Pin :size="14" /> Rota Tanımla
           </button>
+          <button class="ctrl-btn" disabled title="Mock modda harita kaydedilemez">
+            Haritayı Kaydet
+          </button>
         </div>
       </Card>
     </div>
@@ -139,6 +142,7 @@ function send(type, payload) { emit('send-cmd', { type, payload }) }
   font-family: inherit; transition: color .15s, border-color .15s, background .15s;
 }
 .ctrl-btn:hover { color: var(--text); border-color: var(--accent); background: rgba(59,130,246,.08); }
+.ctrl-btn:disabled { opacity: .5; cursor: not-allowed; }
 @media (max-width: 900px) {
   .tab-map { grid-template-columns: 1fr; overflow-y: auto; }
   .map-main-card { min-height: 460px; }

@@ -346,4 +346,11 @@ def generate_launch_description():
             condition=IfCondition(with_ui),
         ),
 
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(os.path.join(
+                get_package_share_directory('hamals_map_tools'),
+                'launch', 'map_save.launch.py')),
+            condition=IfCondition(with_ui),
+        ),
+
     ])

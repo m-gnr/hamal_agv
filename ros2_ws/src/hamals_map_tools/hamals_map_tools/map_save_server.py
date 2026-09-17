@@ -1,212 +1,97 @@
-#!/usr/bin/env python3
+"""Expose Nav2's map saver as a fixed-destination GUI service."""
 
-import os
-import re
-import subprocess
 import threading
 from pathlib import Path
 
 import rclpy
+from nav2_msgs.srv import SaveMap
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from std_srvs.srv import Trigger
 
+from hamals_map_tools.map_files import verify_saved_map
 
-DEFAULT_MAP_DIRECTORY = (
-    "/home/hamal/Desktop/hamal_agv/"
-    "ros2_ws/src/hamals_slam/maps"
-)
 
-DEFAULT_MAP_NAME = "hamal_map"
+MAP_PREFIX = Path.home() / 'hamal_agv/ros2_ws/src/hamals_slam/maps/default'
 
 
 class MapSaveServer(Node):
+    """Relay /map/save to the lifecycle-managed Nav2 map saver."""
 
     def __init__(self):
-        super().__init__("hamal_map_save_server")
-
-        # Launch dosyasından değiştirilebilecek parametreler.
-        self.declare_parameter(
-            "map_directory",
-            DEFAULT_MAP_DIRECTORY
-        )
-
-        self.declare_parameter(
-            "map_name",
-            DEFAULT_MAP_NAME
-        )
-
-        self.declare_parameter(
-            "save_timeout",
-            15.0
-        )
-
-        self._save_lock = threading.Lock()
-
+        super().__init__('map_save_service_node')
+        group = ReentrantCallbackGroup()
+        self._client = self.create_client(
+            SaveMap, '/map_saver/save_map', callback_group=group)
         self._service = self.create_service(
-            Trigger,
-            "/hamal/save_map",
-            self.save_map_callback
-        )
-
-        map_directory = self.get_parameter(
-            "map_directory"
-        ).get_parameter_value().string_value
-
-        map_name = self.get_parameter(
-            "map_name"
-        ).get_parameter_value().string_value
-
+            Trigger, '/map/save', self.save_map_callback, callback_group=group)
+        self._save_lock = threading.Lock()
         self.get_logger().info(
-            "Harita kaydetme servisi hazır."
-        )
-
-        self.get_logger().info(
-            "Servis: /hamal/save_map"
-        )
-
-        self.get_logger().info(
-            f"Hedef: {map_directory}/{map_name}"
-        )
+            f'/map/save ready; destination: {MAP_PREFIX}.yaml')
 
     def save_map_callback(self, request, response):
         del request
-
-        # Kullanıcı art arda butona basarsa aynı anda iki kayıt başlamasın.
         if not self._save_lock.acquire(blocking=False):
-            response.success = False
-            response.message = "Harita zaten kaydediliyor."
+            response.message = 'Harita zaten kaydediliyor.'
             return response
-
         try:
-            map_directory_text = self.get_parameter(
-                "map_directory"
-            ).get_parameter_value().string_value
+            directory = MAP_PREFIX.parent
+            if not directory.is_dir():
+                raise RuntimeError(f'Harita dizini bulunamadı: {directory}')
+            if not self._client.wait_for_service(timeout_sec=3.0):
+                raise RuntimeError('Nav2 map saver servisi hazır değil.')
 
-            map_name = self.get_parameter(
-                "map_name"
-            ).get_parameter_value().string_value
+            yaml_file = MAP_PREFIX.with_suffix('.yaml')
+            pgm_file = MAP_PREFIX.with_suffix('.pgm')
+            previous = {p: p.stat().st_mtime_ns if p.exists() else None
+                        for p in (yaml_file, pgm_file)}
+            save_request = SaveMap.Request()
+            save_request.map_topic = '/map'
+            save_request.map_url = str(MAP_PREFIX)
+            save_request.image_format = 'pgm'
+            save_request.map_mode = 'trinary'
+            save_request.free_thresh = 0.25
+            save_request.occupied_thresh = 0.65
 
-            save_timeout = self.get_parameter(
-                "save_timeout"
-            ).get_parameter_value().double_value
-
-            # Dosya adı yalnızca güvenli karakterlerden oluşsun.
-            if not re.fullmatch(r"[A-Za-z0-9_-]+", map_name):
-                response.success = False
-                response.message = (
-                    "Geçersiz harita adı. "
-                    "Yalnızca harf, rakam, alt çizgi ve tire kullanılabilir."
-                )
-                return response
-
-            map_directory = Path(map_directory_text).expanduser().resolve()
-            map_directory.mkdir(parents=True, exist_ok=True)
-
-            map_prefix = map_directory / map_name
-
-            command = [
-                "ros2",
-                "run",
-                "nav2_map_server",
-                "map_saver_cli",
-                "-f",
-                str(map_prefix),
-                "--ros-args",
-                "-p",
-                f"save_map_timeout:={save_timeout}",
-            ]
-
-            self.get_logger().info(
-                f"Harita kaydediliyor: {map_prefix}"
-            )
-
-            result = subprocess.run(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=max(30.0, save_timeout + 10.0),
-                env=os.environ.copy(),
-                check=False,
-            )
-
-            yaml_file = map_prefix.with_suffix(".yaml")
-            pgm_file = map_prefix.with_suffix(".pgm")
-
-            if result.returncode == 0 and yaml_file.exists():
-                response.success = True
-                response.message = (
-                    f"Harita başarıyla kaydedildi: {yaml_file}"
-                )
-
-                self.get_logger().info(response.message)
-
-                if pgm_file.exists():
-                    self.get_logger().info(
-                        f"Harita görseli: {pgm_file}"
-                    )
-
-                return response
-
-            error_message = result.stderr.strip()
-
-            if not error_message:
-                error_message = result.stdout.strip()
-
-            if not error_message:
-                error_message = (
-                    f"map_saver_cli çıkış kodu: {result.returncode}"
-                )
-
-            # Web paneline devasa terminal çıktısı göndermeyelim.
-            error_message = error_message[-800:]
-
-            response.success = False
-            response.message = (
-                f"Harita kaydedilemedi: {error_message}"
-            )
-
-            self.get_logger().error(response.message)
-            return response
-
-        except subprocess.TimeoutExpired:
-            response.success = False
-            response.message = (
-                "Harita kaydetme zaman aşımına uğradı. "
-                "/map konusu yayınlanıyor mu kontrol et."
-            )
-
-            self.get_logger().error(response.message)
-            return response
-
+            done = threading.Event()
+            future = self._client.call_async(save_request)
+            future.add_done_callback(lambda unused: done.set())
+            if not done.wait(30.0):
+                future.cancel()
+                raise RuntimeError('Nav2 map saver zaman aşımına uğradı.')
+            saved = future.result()
+            if saved is None or not saved.result:
+                raise RuntimeError(
+                    'Nav2 map saver haritayı kaydedemedi; '
+                    '/map yayınını kontrol edin.')
+            verify_saved_map(MAP_PREFIX, previous)
+            response.success = True
+            response.message = f'Map saved to {yaml_file}'
+            self.get_logger().info(response.message)
         except Exception as error:
             response.success = False
-            response.message = (
-                f"Beklenmeyen hata: {error}"
-            )
-
-            self.get_logger().exception(response.message)
-            return response
-
+            response.message = str(error)
+            self.get_logger().error(f'Harita kaydedilemedi: {error}')
         finally:
             self._save_lock.release()
+        return response
 
 
 def main(args=None):
     rclpy.init(args=args)
-
     node = MapSaveServer()
-
+    executor = MultiThreadedExecutor(num_threads=2)
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
+        executor.shutdown()
         node.destroy_node()
-
-        if rclpy.ok():
-            rclpy.shutdown()
+        rclpy.shutdown()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

@@ -1,4 +1,6 @@
 from setuptools import find_packages, setup
+from glob import glob
+import os
 
 
 package_name = "hamals_map_tools"
@@ -17,6 +19,7 @@ setup(
             "share/" + package_name,
             ["package.xml"],
         ),
+        (os.path.join('share', package_name, 'launch'), glob('launch/*.py')),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
