@@ -12,7 +12,7 @@
       </div>
 
       <!-- Stat cells (TopBar handles these) -->
-      <TopBar :state="state" @send-cmd="sendCmd" />
+      <TopBar :state="state" :physical-mode="physicalMode" @send-cmd="sendCmd" />
 
       <!-- Right: E-STOP + clock + mock badge -->
       <div class="topbar__right">
@@ -51,12 +51,12 @@
       <SidebarNav :active="activeTab" @change="activeTab = $event" />
 
       <main class="main-content">
-        <LivePanel v-if="!isMock" :state="state" :tab="activeTab" @send-cmd="sendCmd" />
+        <LivePanel v-if="!isMock" :state="state" :physical-mode="physicalMode" :tab="activeTab" @send-cmd="sendCmd" />
         <template v-else>
         <TabDashboard v-if="activeTab === 'dashboard'" :state="state" @send-cmd="sendCmd" />
         <TabMap       v-if="activeTab === 'map'"       :state="state" @send-cmd="sendCmd" />
         <TabMission   v-if="activeTab === 'mission'"   :state="state" :is-mock="isMock" @send-cmd="sendCmd" />
-        <TabManual    v-if="activeTab === 'manual'"    :state="state" :is-mock="isMock" @send-cmd="sendCmd" />
+        <TabManual    v-if="activeTab === 'manual'"    :state="state" :physical-mode="physicalMode" :is-mock="isMock" @send-cmd="sendCmd" />
         <TabCamera    v-if="activeTab === 'camera'"    :state="state" />
         <TabErrors    v-if="activeTab === 'errors'"    :state="state" />
         <TabSettings  v-if="activeTab === 'settings'"  :state="state" />
@@ -122,6 +122,7 @@ const state = computed(() =>
 const isMock = computed(() =>
   DATA_SOURCE === 'mock'
 )
+const physicalMode = computed(() => isMock.value ? mock.state.value?.switch?.mode || 'unknown' : bridge.physicalMode.value)
 
 // ── Command dispatcher ───────────────────────────────────────
 function sendCmd(cmd) {

@@ -9,23 +9,24 @@ function fixture(mode = 'manual') {
   } }, switch: { mode } }, true, 1000, 1000)
 }
 for (const mode of ['manual', 'auto', 'unknown', '', 'MANUAL', ' manual']) {
-  test(`manual gate: ${JSON.stringify(mode)}`, () => assert.equal(manualAllowed(fixture(mode)), mode === 'manual'))
+  test(`manual gate: ${JSON.stringify(mode)}`, () => assert.equal(manualAllowed(mode), mode === 'manual'))
 }
 test('disconnect blocks manual and marks all sources disconnected', () => {
   const s = liveState(fixture(), false, 1000, 1100)
   assert.equal(s.meta.stale, true)
-  assert.equal(manualAllowed(s), false)
+  assert.equal(manualAllowed('manual', false), false)
   assert.equal(freshness(s, '/safety/state'), 'disconnected')
 })
-test('stale mode cannot be renewed by live aggregate snapshots', () => {
+test('mode state is independent from stale aggregate snapshots', () => {
   const s = fixture(); s.meta.sources['/switch/mode'].age_s = 1.1
-  assert.equal(manualAllowed(s), false)
+  assert.equal(freshness(s, '/switch/mode', 1), 'stale')
+  assert.equal(manualAllowed('manual'), true)
 })
 test('browser receipt age advances per-source age', () => {
   const s = liveState(fixture(), true, 1000, 1950)
-  assert.equal(manualAllowed(s), false)
+  assert.equal(freshness(s, '/switch/mode', 1), 'stale')
 })
-test('global stale blocks controls', () => assert.equal(manualAllowed(liveState(fixture(), true, 1000, 4000)), false))
+test('global stale does not block direct physical manual mode', () => assert.equal(manualAllowed('manual'), true))
 test('startup contains no fake telemetry', () => {
   const s = liveState(null, true, null)
   for (const key of ['battery', 'pose', 'fork', 'mission', 'safety', 'plc', 'qr', 'line']) assert.equal(s[key], undefined)
@@ -33,7 +34,7 @@ test('startup contains no fake telemetry', () => {
 })
 test('backend mock data is rejected by live provider', () => {
   const s = liveState({ meta: { mode: 'mock' }, battery: { percent: 100 }, switch: { mode: 'manual' } }, true, 1000, 1000)
-  assert.equal(s.meta.mismatch, true); assert.equal(s.battery, undefined); assert.equal(manualAllowed(s), false)
+  assert.equal(s.meta.mismatch, true); assert.equal(s.battery, undefined)
 })
 test('unknown safety never healthy', () => assert.equal(safetySummary(fixture()).tone, 'unknown'))
 test('boolean obstacle true renders danger', () => {

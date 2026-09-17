@@ -7,7 +7,7 @@
         <div class="lock-title">Manuel Kontrol Kilitli</div>
         <div class="lock-msg">
           Fiziksel anahtar <strong>MANUEL</strong> konumuna alınmalıdır.<br>
-          Mevcut: <span class="lock-mode">{{ (s.switch?.mode || 'UNKNOWN').toUpperCase() }}</span>
+          Mevcut: <span class="lock-mode">{{ physicalMode.toUpperCase() }}</span>
         </div>
         <button v-if="isMock" class="debug-unlock-btn" @click="toggleSwitch">
           DEBUG: Anahtarı MANUEL'e Al
@@ -146,11 +146,11 @@ import {
 import Card from './Card.vue'
 import SectionTitle from './SectionTitle.vue'
 
-const props = defineProps({ state: Object, isMock: Boolean })
+const props = defineProps({ state: Object, isMock: Boolean, physicalMode: { type: String, default: 'unknown' } })
 const emit  = defineEmits(['send-cmd'])
 const s     = computed(() => props.state || {})
 
-const isLocked = computed(() => props.isMock ? s.value.switch?.mode !== 'manual' : !manualAllowed(s.value))
+const isLocked = computed(() => !manualAllowed(props.physicalMode))
 const forkFresh = computed(() => freshness(s.value, '/fork/state') === 'live')
 
 function toggleSwitch() {

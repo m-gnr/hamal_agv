@@ -1,11 +1,11 @@
 <template>
   <div class="live-panel">
-    <div v-if="state.meta.stale" class="notice warn">
+    <div v-if="state.meta.stale && tab !== 'manual'" class="notice warn">
       {{ state.connection.rosbridge ? 'Stale: yeni canlı veri bekleniyor' : 'Disconnected: ROS bağlantısı yok' }}
       · Son /ui/state yaşı: {{ Number.isFinite(state.meta.ageMs) ? (state.meta.ageMs / 1000).toFixed(1) + ' s' : 'unknown' }}
     </div>
-    <div v-if="state.meta.mismatch" class="notice danger">Mock backend reddedildi. Köprüyü mode:=live ile başlatın.</div>
-    <TabManual v-if="tab === 'manual'" :state="state" :is-mock="false" @send-cmd="emit('send-cmd', $event)" />
+    <div v-if="state.meta.mismatch && tab !== 'manual'" class="notice danger">Mock backend reddedildi. Köprüyü mode:=live ile başlatın.</div>
+    <TabManual v-if="tab === 'manual'" :state="state" :physical-mode="physicalMode" :is-mock="false" @send-cmd="emit('send-cmd', $event)" />
     <div v-else class="live-grid">
       <Card v-if="show('dashboard', 'errors')">
         <template #header><SectionTitle>Güvenlik</SectionTitle></template>
@@ -117,7 +117,7 @@ import SectionTitle from './SectionTitle.vue'
 import TabManual from './TabManual.vue'
 import CameraStream from './CameraStream.vue'
 import { freshness, qrActive, safetySummary } from '../composables/liveState.js'
-const props = defineProps({ state: { type: Object, required: true }, tab: String })
+const props = defineProps({ state: { type: Object, required: true }, tab: String, physicalMode: { type: String, default: 'unknown' } })
 const emit = defineEmits(['send-cmd'])
 const cameraTopic = computed(() => props.state.cameras?.topic || '/camera/image_raw/compressed')
 const task = reactive({ task_id: '', pickup_id: '', dropoff_id: '' })

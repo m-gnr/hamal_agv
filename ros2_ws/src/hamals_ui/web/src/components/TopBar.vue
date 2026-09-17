@@ -89,18 +89,17 @@ import { computed } from 'vue'
 import { freshness, safetySummary } from '../composables/liveState.js'
 import { ToggleLeft, ToggleRight, Power } from 'lucide-vue-next'
 
-const props = defineProps({ state: Object })
+const props = defineProps({ state: Object, physicalMode: { type: String, default: 'unknown' } })
 defineEmits(['send-cmd'])
 const s = computed(() => props.state || {})
 
 const liveCells = computed(() => {
   const state = s.value
-  const modeFresh = freshness(state, '/switch/mode', 1)
   const missionFresh = freshness(state, '/mission/state')
   const safety = safetySummary(state)
   return [
     { name: 'ROS', value: !state.connection?.rosbridge ? 'Disconnected' : state.meta?.mismatch ? 'MOCK backend rejected' : state.meta?.stale ? 'Stale' : 'Connected', tone: state.meta?.stale ? 'warn' : 'healthy' },
-    { name: 'MOD · FİZİKSEL', value: modeFresh === 'live' ? state.switch?.mode : modeFresh },
+    { name: 'MOD · FİZİKSEL', value: props.physicalMode },
     { name: 'GÖREV', value: missionFresh === 'live' ? state.mission?.fsm : missionFresh },
     { name: 'GÜVENLİK', value: safety.label, tone: safety.tone },
     { name: 'SÜRE', value: missionFresh === 'live' ? fmtTime(state.mission?.elapsed_s) : '--:--' },

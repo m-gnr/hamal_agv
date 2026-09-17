@@ -1,6 +1,5 @@
 // Canonical live contract: null/absent = unknown, age is never inferred from values.
 export const STATE_TIMEOUT_MS = 2000
-export const MODE_TIMEOUT_S = 1
 export function liveState(raw, connected, receivedAt, now = Date.now()) {
   const ageMs = receivedAt == null ? Infinity : Math.max(0, now - receivedAt)
   const accepted = raw?.meta?.mode === 'live'
@@ -19,8 +18,8 @@ export function freshness(state, topic, timeout = 3) {
   if (age == null || !Number.isFinite(age)) return 'unknown'
   return age + state.meta.ageMs / 1000 < timeout ? 'live' : 'stale'
 }
-export function manualAllowed(state) {
-  return state?.switch?.mode === 'manual' && freshness(state, '/switch/mode', MODE_TIMEOUT_S) === 'live'
+export function manualAllowed(physicalMode, connected = true) {
+  return connected && physicalMode === 'manual'
 }
 export function safetySummary(state) {
   const health = freshness(state, '/safety/state')

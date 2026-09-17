@@ -17,7 +17,7 @@ const render = (component, props) => renderToString(createSSRApp({ render: () =>
 for (const tab of ['dashboard', 'map', 'mission', 'manual', 'camera', 'errors', 'settings']) {
   test(`live ${tab} renders without telemetry and no fake battery`, async () => {
     const html = await render(Panel, { tab, state: liveState(null, false, null) })
-    assert.match(html, /Disconnected/)
+    if (tab !== 'manual') assert.match(html, /Disconnected/)
     assert.doesNotMatch(html, /100%|24V|Temiz|class="healthy"/)
     if (tab === 'manual') assert.match(html, /Manuel Kontrol Kilitli/)
     if (tab === 'camera') assert.match(html, /Camera unavailable/)
@@ -27,6 +27,21 @@ test('live header renders N/A and unknown mode without MANUEL fallback', async (
   const html = await render(Header, { state: liveState(null, false, null) })
   assert.match(html, /N\/A/); assert.match(html, /Disconnected/)
   assert.doesNotMatch(html, /MANUEL|100%/)
+})
+test('manual screen and physical mode label stay available without /ui/state', async () => {
+  const state = liveState(null, true, null)
+  const panel = await render(Panel, { tab: 'manual', state, physicalMode: 'manual' })
+  const header = await render(Header, { state, physicalMode: 'manual' })
+  assert.doesNotMatch(panel, /Manuel Kontrol Kilitli|Stale: yeni canlı veri bekleniyor/)
+  assert.match(panel, /Klavye Kısayolları/)
+  assert.match(panel, /class="dpad-btn dpad-up"[^>]*>/)
+  assert.doesNotMatch(panel, /class="dpad-btn dpad-up" disabled/)
+  assert.match(header, /MOD · FİZİKSEL/)
+  assert.match(header, /manual/)
+  const locked = await render(Panel, { tab: 'manual', state, physicalMode: 'auto' })
+  assert.match(locked, /Manuel Kontrol Kilitli/)
+  assert.match(locked, /AUTO/)
+  assert.match(locked, /class="dpad-btn dpad-up" disabled/)
 })
 test('actual safety panel renders boolean obstacle as ENGEL', async () => {
   const state = liveState({ meta: { mode: 'live', ts: 100, sources: {
