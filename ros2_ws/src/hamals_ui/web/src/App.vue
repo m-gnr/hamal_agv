@@ -66,6 +66,11 @@
   </div>
 </template>
 
+<script>
+// Shared by all App mounts in this browser session, including reconnects.
+const mockSessionStartedAt = performance.now()
+</script>
+
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useMockData } from './composables/useMockData.js'
@@ -100,6 +105,8 @@ const TABS = [
 ]
 
 const activeTab = ref('dashboard')
+// Browser-only mock has no reliable access to the host battery.
+const mockSessionElapsed = ref(0)
 
 // Clock
 const clock = ref('')
@@ -107,6 +114,7 @@ const date = ref('')
 let clockTimer = null
 function updateClock() {
   const now = new Date()
+  mockSessionElapsed.value = Math.floor((performance.now() - mockSessionStartedAt) / 1000)
   clock.value = now.toLocaleTimeString('tr-TR', { hour12: false })
   date.value = now.toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit', year:'numeric' })
 }
@@ -120,7 +128,9 @@ const mockMapFeed = createMapFeed()
 if (DATA_SOURCE === 'mock') mockMapFeed.push(createMockMap())
 
 const state = computed(() =>
-  DATA_SOURCE === 'mock' ? mock.state.value : bridge.state.value
+  DATA_SOURCE === 'mock'
+    ? { ...mock.state.value, host: { battery: { percent: null, status: 'unavailable' }, session_elapsed_s: mockSessionElapsed.value } }
+    : bridge.state.value
 )
 
 const isMock = computed(() =>

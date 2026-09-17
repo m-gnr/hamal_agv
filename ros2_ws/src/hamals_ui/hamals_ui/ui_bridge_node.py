@@ -12,6 +12,7 @@ import json
 import math
 import os
 import time
+from pathlib import Path
 from typing import Any, Dict
 
 import rclpy
@@ -25,6 +26,31 @@ from hamals_interfaces.action import ExecuteMission
 from hamals_interfaces.msg import ForkCommand
 from hamals_interfaces.srv import PauseMission, ResumeMission
 from rcl_interfaces.srv import GetParameters
+
+
+def _host_battery():
+    """Read the UI host's battery, never the robot's power telemetry."""
+    for supply in sorted(Path('/sys/class/power_supply').glob('BAT*')):
+        try:
+            percent = int((supply / 'capacity').read_text().strip())
+            if not 0 <= percent <= 100:
+                continue
+            try:
+                status = (supply / 'status').read_text().strip().lower()
+            except OSError:
+                status = 'unknown'
+            return {'percent': percent, 'status': status or 'unknown'}
+        except (OSError, ValueError):
+            continue
+    try:
+        import psutil
+        battery = psutil.sensors_battery()
+        if battery is not None and math.isfinite(battery.percent) and 0 <= battery.percent <= 100:
+            return {'percent': round(battery.percent),
+                    'status': 'charging' if battery.power_plugged else 'discharging'}
+    except (ImportError, OSError, AttributeError, ValueError, TypeError, RuntimeError):
+        pass
+    return {'percent': None, 'status': 'unavailable'}
 
 
 # ─────────────────────────────────────────────────────────────
@@ -103,6 +129,7 @@ def _default_state() -> Dict[str, Any]:
         "connection": {"robot": None, "plc": None},
         "switch": {"mode": "unknown"}, "estop": {"active": None},
         "battery": {"percent": None, "voltage": None, "status": "unavailable"},
+        "host": {"battery": {"percent": None, "status": "unavailable"}, "session_elapsed_s": 0},
         "pose": {}, "mission": {"fsm": "unknown", "timer": {}},
         "nav": {"status": "unknown"}, "safety": {}, "obstacle": {},
         "plc": {"connected": None}, "fork": {}, "qr": {}, "line": {},
@@ -217,6 +244,9 @@ class UIBridgeNode(Node):
             f"&topic={camera_base}&default_transport=compressed&qos_profile=sensor_data"
         )
         self._state = _default_state() if self._mode == "live" else _mock_default_state()
+        self._session_started_at = time.monotonic()
+        self._host_battery_last_read = float('-inf')
+        self._state['host'] = {'battery': {'percent': None, 'status': 'unavailable'}, 'session_elapsed_s': 0}
         self._state["meta"]["mode"] = self._mode
         self._state["cameras"] = {"topic": self._camera_topic, "stream_url": self._camera_url}
         self._state["topology"] = _load_yaml(os.path.join(cfg_dir, "topology.yaml"))
@@ -834,8 +864,12 @@ class UIBridgeNode(Node):
     # ─────────────────────────────────────────────────────────
     def _publish_state(self):
         self._state["meta"]["ts"] = time.time()
+        now = time.monotonic()
+        self._state['host']['session_elapsed_s'] = max(0, int(now - self._session_started_at))
+        if now - self._host_battery_last_read >= 5.0:
+            self._state['host']['battery'] = _host_battery()
+            self._host_battery_last_read = now
         if self._mode == "live":
-            now = time.monotonic()
             self._state["meta"]["sources"] = {
                 src["topic"]: {"age_s": now - self._topic_last_seen[src["topic"]]
                                if src["topic"] in self._topic_last_seen else None}

@@ -40,15 +40,15 @@
       </div>
     </div>
 
-    <!-- Batarya -->
+    <!-- UI host battery; robot power is shown separately on the dashboard. -->
     <div class="stat-cell stat-cell--batt">
-      <span class="stat-cell__label">BATARYA</span>
+      <span class="stat-cell__label">PC BATARYA</span>
       <div class="stat-cell__val">
         <div class="batt-bar-wrap">
           <div class="batt-bar" :class="battCls" :style="{ width: battPct + '%' }" />
         </div>
-        <span :class="['batt-pct', battCls === 'batt-red' ? 'val-red' : battCls === 'batt-amber' ? 'val-amber' : 'val-green']">
-          {{ battPct }}%
+        <span :class="['batt-pct', battPct === null ? 'val-dim' : battCls === 'batt-red' ? 'val-red' : battCls === 'batt-amber' ? 'val-amber' : 'val-green']">
+          {{ hostBatteryText }}
         </span>
       </div>
     </div>
@@ -64,13 +64,11 @@
       </div>
     </div>
 
-    <!-- Görev süresi -->
+    <!-- UI oturum süresi -->
     <div class="stat-cell stat-cell--timer">
       <span class="stat-cell__label">SÜRE</span>
-      <div class="stat-cell__val timer-val" :class="timerCls">
-        <span class="timer-elapsed">{{ fmtTime(s.mission?.timer?.elapsed_s) }}</span>
-        <span class="timer-sep">/</span>
-        <span class="timer-target">{{ fmtTime(s.mission?.timer?.target_s) }}</span>
+      <div class="stat-cell__val timer-val">
+        <span class="timer-elapsed">{{ fmtTime(s.host?.session_elapsed_s) }}</span>
       </div>
     </div>
 
@@ -102,8 +100,8 @@ const liveCells = computed(() => {
     { name: 'MOD · FİZİKSEL', value: props.physicalMode },
     { name: 'GÖREV', value: missionFresh === 'live' ? state.mission?.fsm : missionFresh },
     { name: 'GÜVENLİK', value: safety.label, tone: safety.tone },
-    { name: 'SÜRE', value: missionFresh === 'live' ? fmtTime(state.mission?.elapsed_s) : '--:--' },
-    { name: 'BATARYA', value: 'N/A' },
+    { name: 'SÜRE', value: state.meta?.stale ? '--:--:--' : fmtTime(state.host?.session_elapsed_s) },
+    { name: 'PC BATARYA', value: state.meta?.stale ? 'N/A' : batteryText(state.host?.battery) },
   ]
 })
 
@@ -121,22 +119,21 @@ const FSM_CLS = {
 }
 const fsmCls = computed(() => FSM_CLS[s.value.mission?.fsm] || 'fsm-dim')
 
-const battPct = computed(() => Math.round(s.value.battery?.percent ?? 100))
-const battCls = computed(() => battPct.value < 10 ? 'batt-red' : battPct.value < 20 ? 'batt-amber' : 'batt-green')
+const battPct = computed(() => validPercent(s.value.host?.battery?.percent) ? Math.round(s.value.host.battery.percent) : null)
+const battCls = computed(() => battPct.value === null ? '' : battPct.value < 10 ? 'batt-red' : battPct.value < 20 ? 'batt-amber' : 'batt-green')
+const hostBatteryText = computed(() => batteryText(s.value.host?.battery))
 
-const elapsed = computed(() => s.value.mission?.timer?.elapsed_s || 0)
-const target  = computed(() => s.value.mission?.timer?.target_s || 1800)
-const timerCls = computed(() => {
-  const lim = s.value.mission?.timer?.limit_s || 2700
-  if (elapsed.value > lim)         return 'timer-danger'
-  if (elapsed.value > target.value) return 'timer-warn'
-  return ''
-})
+function validPercent(value) { return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100 }
+function batteryText(battery) {
+  if (!validPercent(battery?.percent)) return 'N/A'
+  const status = { charging: ' · Şarj', discharging: ' · Pilde', full: ' · Dolu' }[battery.status] || ''
+  return `${Math.round(battery.percent)}%${status}`
+}
 
 function fmtTime(sec) {
-  if (sec === undefined || sec === null) return '--:--'
-  const m = Math.floor(sec / 60), ss = Math.floor(sec % 60)
-  return `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`
+  if (typeof sec !== 'number' || !Number.isFinite(sec) || sec < 0) return '--:--:--'
+  const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), ss = Math.floor(sec % 60)
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`
 }
 </script>
 
@@ -208,10 +205,6 @@ function fmtTime(sec) {
 /* Timer */
 .timer-val     { gap: 3px; font-variant-numeric: tabular-nums; }
 .timer-elapsed { font-size: 14px; font-weight: 700; color: var(--text); }
-.timer-sep     { font-size: 11px; color: var(--text-dim); }
-.timer-target  { font-size: 11px; color: var(--text-dim); }
-.timer-warn   .timer-elapsed { color: var(--amber); }
-.timer-danger .timer-elapsed { color: var(--red); animation: pulse .7s infinite; }
 
 /* FSM pill */
 .fsm-pill { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; white-space: nowrap; }
