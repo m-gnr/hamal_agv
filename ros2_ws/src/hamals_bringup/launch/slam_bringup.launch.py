@@ -1,8 +1,9 @@
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
-from launch.substitutions import Command, PathJoinSubstitution
+from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
 
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
@@ -30,6 +31,8 @@ def generate_launch_description():
     slam_share = get_package_share_directory(
         'hamals_slam'
     )
+
+    with_ui = LaunchConfiguration('with_ui')
 
     # ============================================================
     # Robot Description / TF
@@ -155,6 +158,23 @@ def generate_launch_description():
         )
     )
 
+    # Use the same UI bringup as competition.launch.py. This starts
+    # rosbridge on port 9090, the UI bridge, and the web server.
+    ui_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                FindPackageShare('hamals_ui'),
+                'launch',
+                'ui.launch.py',
+            ])
+        ),
+        launch_arguments={
+            'mode': 'live',
+            'rosbridge_port': '9090',
+        }.items(),
+        condition=IfCondition(with_ui),
+    )
+
     # ============================================================
     # Launch
     #
@@ -174,6 +194,12 @@ def generate_launch_description():
 
     return LaunchDescription([
 
+        DeclareLaunchArgument(
+            'with_ui',
+            default_value='false',
+            description='Start the rosbridge/UI stack alongside SLAM',
+        ),
+
         # Robot URDF / Static TF
         robot_state_publisher_node,
 
@@ -185,5 +211,8 @@ def generate_launch_description():
 
         # SLAM Toolbox
         slam_launch,
+
+        # Optional rosbridge / UI
+        ui_launch,
 
     ])
