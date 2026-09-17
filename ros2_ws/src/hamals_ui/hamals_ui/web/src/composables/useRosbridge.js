@@ -41,8 +41,8 @@ export function useRosbridge(url, transport = ROSLIB) {
       receivedAt.value = null
       lastStamp = null
       connected.value = true
-      cmdTopic = new transport.Topic({ ros: client, name: '/ui/cmd', messageType: 'std_msgs/String', reconnect_on_close: false })
-      stateTopic = new transport.Topic({ ros: client, name: '/ui/state', messageType: 'std_msgs/String', reconnect_on_close: false })
+      cmdTopic = new transport.Topic({ ros: client, name: '/ui/cmd', messageType: 'std_msgs/String', reconnect_on_close: true })
+      stateTopic = new transport.Topic({ ros: client, name: '/ui/state', messageType: 'std_msgs/String', reconnect_on_close: true })
       stateTopic.subscribe(msg => {
         if (client !== ros.value || stopped) return
         try {

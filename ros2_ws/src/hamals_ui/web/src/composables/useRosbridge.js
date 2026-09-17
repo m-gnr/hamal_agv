@@ -41,8 +41,12 @@ export function useRosbridge(url, transport = ROSLIB) {
       receivedAt.value = null
       lastStamp = null
       connected.value = true
-      cmdTopic = new transport.Topic({ ros: client, name: '/ui/cmd', messageType: 'std_msgs/String', reconnect_on_close: false })
-      stateTopic = new transport.Topic({ ros: client, name: '/ui/state', messageType: 'std_msgs/String', reconnect_on_close: false })
+      // yous: reconnect_on_close:false KALDIRILDI — roslib 1.4.0 bug'ı subscribe/advertise'da
+      //       "Cannot read properties of undefined (reading 'encoder')" fırlatıyor (callOnConnection this-binding kaybı).
+      // eski: cmdTopic  = ...'std_msgs/String', reconnect_on_close: false })
+      // eski: stateTopic = ...'std_msgs/String', reconnect_on_close: false })
+      cmdTopic = new transport.Topic({ ros: client, name: '/ui/cmd', messageType: 'std_msgs/String' })
+      stateTopic = new transport.Topic({ ros: client, name: '/ui/state', messageType: 'std_msgs/String' })
       stateTopic.subscribe(msg => {
         if (client !== ros.value || stopped) return
         try {
