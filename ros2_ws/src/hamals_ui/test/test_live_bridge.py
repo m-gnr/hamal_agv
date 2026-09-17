@@ -53,7 +53,6 @@ def bridge(monkeypatch):
     node._mode = 'live'
     node._state = mod._default_state()
     node._session_started_at = clock.now
-    node._host_battery_last_read = float('-inf')
     node._topic_last_seen = {}
     node._topic_offline_key = {}
     node._goal_handle = None
@@ -188,43 +187,16 @@ def test_live_heartbeat_does_not_refresh_raw_source_age(bridge):
     assert msg['battery']['percent'] is None
 
 
-def test_host_battery_sysfs_and_unavailable(bridge, monkeypatch, tmp_path):
-    mod = bridge._test_module
-    monkeypatch.setattr(mod, 'Path', lambda _: tmp_path)
-    monkeypatch.setitem(sys.modules, 'psutil', NS(sensors_battery=lambda: None))
-    assert mod._host_battery() == {'percent': None, 'status': 'unavailable'}
-    supply = tmp_path / 'BAT0'
-    supply.mkdir()
-    (supply / 'capacity').write_text('63\n')
-    (supply / 'status').write_text('Charging\n')
-    assert mod._host_battery() == {'percent': 63, 'status': 'charging'}
-    (supply / 'status').unlink()
-    assert mod._host_battery() == {'percent': 63, 'status': 'unknown'}
-    (supply / 'capacity').write_text('invalid')
-    assert mod._host_battery() == {'percent': None, 'status': 'unavailable'}
-
-
-def test_host_battery_psutil_fallback(bridge, monkeypatch, tmp_path):
-    mod = bridge._test_module
-    monkeypatch.setattr(mod, 'Path', lambda _: tmp_path)
-    monkeypatch.setitem(sys.modules, 'psutil', NS(sensors_battery=lambda: NS(percent=42.4, power_plugged=False)))
-    assert mod._host_battery() == {'percent': 42, 'status': 'discharging'}
-
-
-def test_session_clock_survives_mission_change_and_battery_is_throttled(bridge, monkeypatch):
-    mod = bridge._test_module
-    battery = Mock(return_value={'percent': 55, 'status': 'charging'})
-    monkeypatch.setattr(mod, '_host_battery', battery)
+def test_session_clock_survives_mission_change(bridge):
     bridge._publish_state()
     assert json.loads(bridge._state_pub.publish.call_args.args[0].data)['host']['session_elapsed_s'] == 0
     bridge._test_clock.now += 3
     bridge._state['mission']['elapsed_s'] = 0
     bridge._publish_state()
     assert json.loads(bridge._state_pub.publish.call_args.args[0].data)['host']['session_elapsed_s'] == 3
-    battery.assert_called_once()
     bridge._test_clock.now += 3
     bridge._publish_state()
-    assert battery.call_count == 2
+    assert json.loads(bridge._state_pub.publish.call_args.args[0].data)['host']['session_elapsed_s'] == 6
 
 
 def test_action_goal_uses_real_task_fields(bridge):

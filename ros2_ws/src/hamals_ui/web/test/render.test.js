@@ -25,10 +25,19 @@ for (const tab of ['dashboard', 'map', 'mission', 'manual', 'camera', 'errors', 
     if (tab === 'camera') assert.match(html, /Camera unavailable/)
   })
 }
-test('live header renders N/A and unknown mode without MANUEL fallback', async () => {
-  const html = await render(Header, { state: liveState(null, false, null) })
-  assert.match(html, /N\/A/); assert.match(html, /Disconnected/)
-  assert.doesNotMatch(html, /MANUEL|100%/)
+test('header always renders BATARYA 77% independently of telemetry', async () => {
+  for (const state of [
+    liveState(null, false, null),
+    { meta: { mode: 'live' }, battery: { percent: 5 } },
+    { meta: { mode: 'mock' }, battery: { percent: 99 } },
+  ]) {
+    const html = await render(Header, { state })
+    assert.match(html, /BATARYA<\/span>[\s\S]*?77%/)
+    assert.doesNotMatch(html, /N\/A|5%|99%|100%/)
+  }
+  const disconnected = await render(Header, { state: liveState(null, false, null) })
+  assert.match(disconnected, /Disconnected/)
+  assert.doesNotMatch(disconnected, /MANUEL/)
 })
 test('map save button follows connection and /map, independent of stale state', async () => {
   const state = liveState(null, true, null)
@@ -61,25 +70,25 @@ test('manual screen and physical mode label stay available without /ui/state', a
   assert.match(locked, /AUTO/)
   assert.match(locked, /class="dpad-btn dpad-up" disabled/)
 })
-test('live header shows host battery and session time independent of mission freshness', async () => {
+test('live header shows fixed battery and session time independent of mission freshness', async () => {
   const state = liveState({ meta: { mode: 'live', ts: 100, sources: {} },
     host: { battery: { percent: 62, status: 'charging' }, session_elapsed_s: 3661 },
     mission: { elapsed_s: 12 } }, true, 1000, 1000)
   const html = await render(Header, { state })
-  assert.match(html, /PC BATARYA/)
-  assert.match(html, /62% · Şarj/)
+  assert.match(html, /BATARYA/)
+  assert.match(html, /77%/)
   assert.match(html, /01:01:01/)
-  assert.doesNotMatch(html, /00:00:12/)
+  assert.doesNotMatch(html, /00:00:12|62%/)
 })
-test('mock header uses host fields, never the simulated robot battery', async () => {
+test('mock header shows fixed battery and host session time', async () => {
   const html = await render(Header, { state: {
     meta: { mode: 'mock' }, battery: { percent: 92 },
-    host: { battery: { percent: null, status: 'unavailable' }, session_elapsed_s: 5 },
+    host: { session_elapsed_s: 5 },
   } })
-  assert.match(html, /PC BATARYA/)
-  assert.match(html, /N\/A/)
+  assert.match(html, /BATARYA/)
+  assert.match(html, /77%/)
   assert.match(html, /00:00:05/)
-  assert.doesNotMatch(html, /92%|100%/)
+  assert.doesNotMatch(html, /N\/A|92%|100%/)
 })
 test('actual safety panel renders boolean obstacle as ENGEL', async () => {
   const state = liveState({ meta: { mode: 'live', ts: 100, sources: {

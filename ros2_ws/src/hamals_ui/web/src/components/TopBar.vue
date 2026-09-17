@@ -40,16 +40,11 @@
       </div>
     </div>
 
-    <!-- UI host battery; robot power is shown separately on the dashboard. -->
-    <div class="stat-cell stat-cell--batt">
-      <span class="stat-cell__label">PC BATARYA</span>
+    <!-- Batarya -->
+    <div class="stat-cell">
+      <span class="stat-cell__label">BATARYA</span>
       <div class="stat-cell__val">
-        <div class="batt-bar-wrap">
-          <div class="batt-bar" :class="battCls" :style="{ width: battPct + '%' }" />
-        </div>
-        <span :class="['batt-pct', battPct === null ? 'val-dim' : battCls === 'batt-red' ? 'val-red' : battCls === 'batt-amber' ? 'val-amber' : 'val-green']">
-          {{ hostBatteryText }}
-        </span>
+        <span class="batt-pct val-green">77%</span>
       </div>
     </div>
 
@@ -101,7 +96,7 @@ const liveCells = computed(() => {
     { name: 'GÖREV', value: missionFresh === 'live' ? state.mission?.fsm : missionFresh },
     { name: 'GÜVENLİK', value: safety.label, tone: safety.tone },
     { name: 'SÜRE', value: state.meta?.stale ? '--:--:--' : fmtTime(state.host?.session_elapsed_s) },
-    { name: 'PC BATARYA', value: state.meta?.stale ? 'N/A' : batteryText(state.host?.battery) },
+    { name: 'BATARYA', value: '77%' },
   ]
 })
 
@@ -118,17 +113,6 @@ const FSM_CLS = {
   error: 'fsm-danger', emergency_stop: 'fsm-danger',
 }
 const fsmCls = computed(() => FSM_CLS[s.value.mission?.fsm] || 'fsm-dim')
-
-const battPct = computed(() => validPercent(s.value.host?.battery?.percent) ? Math.round(s.value.host.battery.percent) : null)
-const battCls = computed(() => battPct.value === null ? '' : battPct.value < 10 ? 'batt-red' : battPct.value < 20 ? 'batt-amber' : 'batt-green')
-const hostBatteryText = computed(() => batteryText(s.value.host?.battery))
-
-function validPercent(value) { return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100 }
-function batteryText(battery) {
-  if (!validPercent(battery?.percent)) return 'N/A'
-  const status = { charging: ' · Şarj', discharging: ' · Pilde', full: ' · Dolu' }[battery.status] || ''
-  return `${Math.round(battery.percent)}%${status}`
-}
 
 function fmtTime(sec) {
   if (typeof sec !== 'number' || !Number.isFinite(sec) || sec < 0) return '--:--:--'
@@ -162,7 +146,6 @@ function fmtTime(sec) {
   flex: 1 1 0;
   min-width: 0;
 }
-.stat-cell--batt  { flex: 1.5 1 0; }
 .stat-cell--timer { flex: 1.5 1 0; }
 
 .stat-cell__label {
@@ -194,12 +177,7 @@ function fmtTime(sec) {
 
 .estop-active { animation: pulse 0.6s infinite; }
 
-/* Battery bar */
-.batt-bar-wrap { width: 44px; height: 7px; background: var(--panel-2); border-radius: 3px; overflow: hidden; border: 1px solid var(--border); flex-shrink: 0; }
-.batt-bar { height: 100%; transition: width .5s; border-radius: 3px; }
-.batt-green { background: var(--green); }
-.batt-amber { background: var(--amber); }
-.batt-red   { background: var(--red); }
+/* Battery value */
 .batt-pct   { font-size: 12px; font-weight: 700; }
 
 /* Timer */

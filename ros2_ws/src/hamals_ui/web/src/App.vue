@@ -105,7 +105,6 @@ const TABS = [
 ]
 
 const activeTab = ref('dashboard')
-// Browser-only mock has no reliable access to the host battery.
 const mockSessionElapsed = ref(0)
 
 // Clock
@@ -129,7 +128,7 @@ if (DATA_SOURCE === 'mock') mockMapFeed.push(createMockMap())
 
 const state = computed(() =>
   DATA_SOURCE === 'mock'
-    ? { ...mock.state.value, host: { battery: { percent: null, status: 'unavailable' }, session_elapsed_s: mockSessionElapsed.value } }
+    ? { ...mock.state.value, host: { session_elapsed_s: mockSessionElapsed.value } }
     : bridge.state.value
 )
 
