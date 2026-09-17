@@ -51,10 +51,10 @@
       <SidebarNav :active="activeTab" @change="activeTab = $event" />
 
       <main class="main-content">
-        <LivePanel v-if="!isMock" :state="state" :physical-mode="physicalMode" :tab="activeTab" @send-cmd="sendCmd" />
+        <LivePanel v-if="!isMock" :state="state" :physical-mode="physicalMode" :tab="activeTab" :map-feed="bridge.mapFeed" :map-connected="bridge.connected.value" @send-cmd="sendCmd" />
         <template v-else>
         <TabDashboard v-if="activeTab === 'dashboard'" :state="state" @send-cmd="sendCmd" />
-        <TabMap       v-if="activeTab === 'map'"       :state="state" @send-cmd="sendCmd" />
+        <TabMap       v-if="activeTab === 'map'"       :state="state" :map-feed="mockMapFeed" :map-connected="true" @send-cmd="sendCmd" />
         <TabMission   v-if="activeTab === 'mission'"   :state="state" :is-mock="isMock" @send-cmd="sendCmd" />
         <TabManual    v-if="activeTab === 'manual'"    :state="state" :physical-mode="physicalMode" :is-mock="isMock" @send-cmd="sendCmd" />
         <TabCamera    v-if="activeTab === 'camera'"    :state="state" />
@@ -70,6 +70,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useMockData } from './composables/useMockData.js'
 import { useRosbridge } from './composables/useRosbridge.js'
+import { createMapFeed } from './composables/occupancyGrid.js'
+import { createMockMap } from './composables/mockMap.js'
 import { Forklift, AlertTriangle, StopCircle } from 'lucide-vue-next'
 import LivePanel from './components/LivePanel.vue'
 import TopBar       from './components/TopBar.vue'
@@ -114,6 +116,8 @@ onUnmounted(() => clearInterval(clockTimer))
 // ── Data source ─────────────────────────────────────────────
 const mock = useMockData()
 const bridge = useRosbridge(ROSBRIDGE_URL)
+const mockMapFeed = createMapFeed()
+if (DATA_SOURCE === 'mock') mockMapFeed.push(createMockMap())
 
 const state = computed(() =>
   DATA_SOURCE === 'mock' ? mock.state.value : bridge.state.value

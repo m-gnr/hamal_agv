@@ -1,6 +1,7 @@
 import { ref, shallowRef, computed } from 'vue'
 import ROSLIB from 'roslib'
 import { liveState, manualAllowed } from './liveState.js'
+import { createMapFeed } from './occupancyGrid.js'
 
 export function useRosbridge(url, transport = ROSLIB) {
   const raw = shallowRef(null)
@@ -9,8 +10,9 @@ export function useRosbridge(url, transport = ROSLIB) {
   const ros = shallowRef(null)
   const receivedAt = ref(null)
   const now = ref(Date.now())
+  const mapFeed = createMapFeed()
   const state = computed(() => liveState(raw.value, connected.value, receivedAt.value, now.value))
-  let stateTopic, modeTopic, cmdTopic, motionTopic, forkTopic, reconnectTimer, ageTimer, stopped = true
+  let stateTopic, modeTopic, mapTopic, cmdTopic, motionTopic, forkTopic, reconnectTimer, ageTimer, stopped = true
   let lastStamp = null
 
   function publish(topic, type, data) {
@@ -85,6 +87,11 @@ export function useRosbridge(url, transport = ROSLIB) {
           now.value = Date.now()
         } catch { /* malformed state cannot refresh the lease */ }
       })
+      mapTopic = new transport.Topic({ ros: client, name: '/map', messageType: 'nav_msgs/msg/OccupancyGrid' })
+      mapTopic.subscribe(msg => {
+        if (client !== ros.value || stopped || !connected.value) return
+        mapFeed.push(msg)
+      })
     })
     function lost() {
       if (client !== ros.value || lostHandled) return
@@ -95,6 +102,8 @@ export function useRosbridge(url, transport = ROSLIB) {
       receivedAt.value = null
       if (stateTopic) stateTopic.unsubscribe()
       if (modeTopic) modeTopic.unsubscribe()
+      if (mapTopic) mapTopic.unsubscribe()
+      stateTopic = modeTopic = mapTopic = null
       motionTopic = forkTopic = null
       if (!stopped && !reconnectTimer) reconnectTimer = setTimeout(() => {
         reconnectTimer = null
@@ -119,11 +128,13 @@ export function useRosbridge(url, transport = ROSLIB) {
     clearInterval(ageTimer)
     stateTopic?.unsubscribe()
     modeTopic?.unsubscribe()
+    mapTopic?.unsubscribe()
+    stateTopic = modeTopic = mapTopic = null
     motionTopic = forkTopic = null
     connected.value = false
     physicalMode.value = 'unknown'
     ros.value?.close()
     ros.value = null
   }
-  return { state, physicalMode, connected, ros, connect, disconnect, publish, sendCmd }
+  return { state, physicalMode, connected, ros, mapFeed, connect, disconnect, publish, sendCmd }
 }

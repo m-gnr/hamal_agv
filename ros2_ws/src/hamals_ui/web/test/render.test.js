@@ -4,6 +4,7 @@ import { createServer } from 'vite'
 import { createSSRApp, h } from 'vue'
 import { renderToString } from 'vue/server-renderer'
 import { liveState } from '../src/composables/liveState.js'
+import { createMapFeed } from '../src/composables/occupancyGrid.js'
 
 let server, Panel, Header
 // Compile the actual Vue components; transports remain absent in render tests.
@@ -13,11 +14,11 @@ test.before(async () => {
   Header = (await server.ssrLoadModule('/src/components/TopBar.vue')).default
 })
 test.after(async () => { await server?.close() })
-const render = (component, props) => renderToString(createSSRApp({ render: () => h(component, props) }))
+const render = (component, props) => renderToString(createSSRApp({ render: () => h(component, component === Panel ? { mapFeed: createMapFeed(), ...props } : props) }))
 for (const tab of ['dashboard', 'map', 'mission', 'manual', 'camera', 'errors', 'settings']) {
   test(`live ${tab} renders without telemetry and no fake battery`, async () => {
     const html = await render(Panel, { tab, state: liveState(null, false, null) })
-    if (tab !== 'manual') assert.match(html, /Disconnected/)
+    if (tab !== 'manual') assert.match(html, /Disconnected|DISCONNECTED/)
     assert.doesNotMatch(html, /100%|24V|Temiz|class="healthy"/)
     if (tab === 'manual') assert.match(html, /Manuel Kontrol Kilitli/)
     if (tab === 'camera') assert.match(html, /Camera unavailable/)

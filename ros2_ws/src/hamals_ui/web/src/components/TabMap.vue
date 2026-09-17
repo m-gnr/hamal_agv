@@ -10,23 +10,11 @@
               <Compass v-else :size="11" />
               {{ s.nav?.mode === 'line_follow' ? 'Çizgi Takibi' : 'Nav2' }}
             </span>
-            <div class="zoom-btns">
-              <button class="zoom-btn" title="Yakınlaştır"><ZoomIn :size="14" /></button>
-              <button class="zoom-btn" title="Uzaklaştır"><ZoomOut :size="14" /></button>
-            </div>
           </div>
         </div>
       </template>
       <div class="map-canvas-wrap">
-        <MiniMap :state="s" :fullsize="true" style="width:100%;height:auto;" />
-      </div>
-      <div class="color-legend">
-        <span class="cleg-item"><span class="cleg-dot" style="background:#3b82f6" />Başlangıç/Bağlantı</span>
-        <span class="cleg-item"><span class="cleg-dot cleg-diamond" style="background:#ef4444" />Alma İstasyonu</span>
-        <span class="cleg-item"><span class="cleg-dot cleg-diamond" style="background:#3b82f6" />Bırakma İstasyonu</span>
-        <span class="cleg-item"><span class="cleg-dot cleg-sq" style="background:#22c55e" />QR Kod Noktası</span>
-        <span class="cleg-item"><span class="cleg-dot" style="background:#f5a524" />Kapı</span>
-        <span class="cleg-item"><span class="cleg-dot cleg-robot" style="background:#f5a524" />Robot</span>
+        <MapViewer :feed="mapFeed" :connected="mapConnected" />
       </div>
     </Card>
 
@@ -86,15 +74,15 @@
 <script setup>
 import { computed } from 'vue'
 import {
-  Map as MapIcon, Compass, Zap, ZoomIn, ZoomOut, Navigation,
+  Map as MapIcon, Compass, Zap, Navigation,
   Route, Layers, PlayCircle, StopCircle, Pin,
 } from 'lucide-vue-next'
 import Card from './Card.vue'
 import SectionTitle from './SectionTitle.vue'
 import LabelRow from './LabelRow.vue'
-import MiniMap from './MiniMap.vue'
+import MapViewer from './MapViewer.vue'
 
-const props = defineProps({ state: Object })
+const props = defineProps({ state: Object, mapFeed: { type: Object, required: true }, mapConnected: Boolean })
 const emit = defineEmits(['send-cmd'])
 const s = computed(() => props.state || {})
 
@@ -117,6 +105,7 @@ function send(type, payload) { emit('send-cmd', { type, payload }) }
 <style scoped>
 .tab-map { display: grid; grid-template-columns: 1fr 230px; gap: 10px; height: 100%; overflow: hidden; }
 .map-main-card { display: flex; flex-direction: column; overflow: hidden; }
+.map-main-card :deep(.card__body) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .map-side { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
 
 .map-card-header { display: flex; align-items: center; justify-content: space-between; }
@@ -124,23 +113,7 @@ function send(type, payload) { emit('send-cmd', { type, payload }) }
 .nav-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 12px; font-size: 11px; font-weight: 700; }
 .nav-nav2 { background: rgba(59,130,246,.15); color: var(--accent); }
 .nav-line  { background: rgba(34,197,94,.15);  color: var(--green); }
-.zoom-btns { display: flex; gap: 4px; }
-.zoom-btn {
-  width: 26px; height: 26px; border: 1px solid var(--border); border-radius: 6px;
-  background: var(--panel-2); color: var(--text-dim); cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: color .15s, border-color .15s;
-}
-.zoom-btn:hover { color: var(--text); border-color: var(--accent); }
-
 .map-canvas-wrap { flex: 1; min-height: 0; overflow: hidden; }
-
-.color-legend { display: flex; flex-wrap: wrap; gap: 10px; padding-top: 8px; border-top: 1px solid var(--border); margin-top: 8px; }
-.cleg-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-dim); }
-.cleg-dot    { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
-.cleg-diamond{ border-radius: 2px; transform: rotate(45deg); }
-.cleg-sq     { border-radius: 1px; }
-.cleg-robot  { border-radius: 2px; }
 
 /* Route progress */
 .progress-wrap { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
@@ -166,4 +139,9 @@ function send(type, payload) { emit('send-cmd', { type, payload }) }
   font-family: inherit; transition: color .15s, border-color .15s, background .15s;
 }
 .ctrl-btn:hover { color: var(--text); border-color: var(--accent); background: rgba(59,130,246,.08); }
+@media (max-width: 900px) {
+  .tab-map { grid-template-columns: 1fr; overflow-y: auto; }
+  .map-main-card { min-height: 460px; }
+  .map-side { overflow: visible; }
+}
 </style>

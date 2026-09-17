@@ -1,6 +1,6 @@
 <template>
   <div class="live-panel">
-    <div v-if="state.meta.stale && tab !== 'manual'" class="notice warn">
+    <div v-if="state.meta.stale && tab !== 'manual' && tab !== 'map'" class="notice warn">
       {{ state.connection.rosbridge ? 'Stale: yeni canlı veri bekleniyor' : 'Disconnected: ROS bağlantısı yok' }}
       · Son /ui/state yaşı: {{ Number.isFinite(state.meta.ageMs) ? (state.meta.ageMs / 1000).toFixed(1) + ' s' : 'unknown' }}
     </div>
@@ -61,17 +61,8 @@
         </dl>
       </Card>
 
-      <Card v-if="show('dashboard', 'map')" class="map-card">
-        <template #header><SectionTitle>Topoloji · şematik</SectionTitle></template>
-        <svg v-if="state.topology?.nodes" viewBox="0 80 850 410" role="img" aria-label="Şematik topoloji; robot konumu içermez">
-          <line v-for="(edge, index) in state.topology.edges" :key="index" :x1="node(edge.from).x" :y1="node(edge.from).y" :x2="node(edge.to).x" :y2="node(edge.to).y" stroke="#516179" stroke-width="3" />
-          <g v-for="n in state.topology.nodes" :key="n.id">
-            <circle :cx="n.x" :cy="n.y" r="9" fill="#7d8aa0" />
-            <text :x="n.x" :y="n.y - 18" text-anchor="middle" fill="#eef2f8" font-size="17">{{ n.label }}</text>
-          </g>
-        </svg>
-        <p v-else>Topoloji unavailable</p>
-        <p>Görsel koordinatlar metrik değildir. Robot konumu veya aktif yol bu grafiğe çizilmez.</p>
+      <Card v-if="show('dashboard', 'map')" :class="['map-card', { 'map-card-full': tab === 'map' }]">
+        <MapViewer :feed="mapFeed" :connected="mapConnected" />
         <dl>
           <dt>Pose frame</dt><dd>{{ value('/odom', state.pose?.frame_id) }} → {{ value('/odom', state.pose?.child_frame_id) }}</dd>
           <dt>Konum (m)</dt><dd>{{ value('/odom', state.pose?.x) }}, {{ value('/odom', state.pose?.y) }}</dd>
@@ -116,8 +107,9 @@ import Card from './Card.vue'
 import SectionTitle from './SectionTitle.vue'
 import TabManual from './TabManual.vue'
 import CameraStream from './CameraStream.vue'
+import MapViewer from './MapViewer.vue'
 import { freshness, qrActive, safetySummary } from '../composables/liveState.js'
-const props = defineProps({ state: { type: Object, required: true }, tab: String, physicalMode: { type: String, default: 'unknown' } })
+const props = defineProps({ state: { type: Object, required: true }, tab: String, physicalMode: { type: String, default: 'unknown' }, mapFeed: { type: Object, required: true }, mapConnected: Boolean })
 const emit = defineEmits(['send-cmd'])
 const cameraTopic = computed(() => props.state.cameras?.topic || '/camera/image_raw/compressed')
 const task = reactive({ task_id: '', pickup_id: '', dropoff_id: '' })
@@ -143,7 +135,6 @@ const plcConfig = computed(() => {
   if (props.state.meta.stale || age > 10) return 'stale'
   return `${config.transport ?? 'unknown'} · ${config.ip ?? 'unknown'}:${config.port ?? 'unknown'}`
 })
-const node = id => props.state.topology?.nodes?.find(n => n.id === id) || {}
 function command(type, payload = {}) { emit('send-cmd', { type, payload: { ...payload } }) }
 </script>
 <style scoped>
@@ -156,7 +147,8 @@ dl { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(100px, 1fr)
 dt, dd { margin: 0; overflow-wrap: anywhere; }
 dd { color: var(--text); }
 .healthy { color: var(--green); }.warn { color: var(--amber); }.danger { color: var(--red); }.unknown { color: var(--text-dim); }
-svg { width: 100%; max-height: 340px; }
+.map-card-full { grid-column: 1 / -1; }
+.map-card-full :deep(.map-viewer) { height: min(68vh, 720px); }
 form { margin-top: 18px; display: grid; gap: 8px; }
 label { display: grid; gap: 5px; font-size: 12px; }
 input, button { border: 1px solid var(--border); border-radius: 6px; padding: 9px; background: var(--panel-2); color: var(--text); font: inherit; }

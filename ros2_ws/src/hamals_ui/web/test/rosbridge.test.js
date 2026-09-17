@@ -88,3 +88,18 @@ test('live dispatcher rejects local mode and E-STOP commands', t => {
   for (const type of ['estop', 'estop_ack', 'switch_mode']) assert.equal(f.bridge.sendCmd({ type }), false)
   assert.equal(f.sent.length, 0)
 })
+test('/map subscribes once per connection and survives missing /ui/state', t => {
+  const f = setup(t); f.connect()
+  const maps = f.topics.filter(x => x.name === '/map')
+  assert.equal(maps.length, 1)
+  assert.equal(maps[0].messageType, 'nav_msgs/msg/OccupancyGrid')
+  const message = { header: { frame_id: 'map' }, info: { width: 1, height: 1, resolution: 0.05 }, data: [100] }
+  maps[0].cb(message)
+  assert.equal(f.bridge.mapFeed.latest, message)
+  assert.equal(f.bridge.state.value.meta.stale, true)
+  f.clients[0].close()
+  assert.equal(maps[0].cb, null)
+  assert.equal(f.bridge.mapFeed.latest, message)
+  t.mock.timers.tick(3000); f.connect()
+  assert.equal(f.topics.filter(x => x.name === '/map').length, 2)
+})
