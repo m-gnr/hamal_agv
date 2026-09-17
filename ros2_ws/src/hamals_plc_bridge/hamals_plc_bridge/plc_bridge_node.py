@@ -56,17 +56,23 @@ class PlcBridgeNode(Node):
         self._x = 0.0
         self._y = 0.0
         self._last_plc_task = None
+        self._pending_task = None
+        self._task_seen_running = False
+        self._pause_requested = False
+        self._resume_requested = False
         self._at_door = False
         self._door_task_id = ''
         self._door_outbound = True
         self._door_permission_active = False
-        self._connected = False
+        self._last_valid_rx = None
         self._sock = None
         self._stop = False
 
         self.task_pub = self.create_publisher(MissionTask, '/plc/mission_task', 10)
         self.state_pub = self.create_publisher(PlcState, '/plc/state', 10)
         self.door_pub = self.create_publisher(DoorEvent, '/plc/door_event', 10)
+        self.plc_pause_client = self.create_client(Trigger, '/mission/plc_pause')
+        self.plc_resume_client = self.create_client(Trigger, '/mission/plc_resume')
         self.create_subscription(DoorEvent, '/mission/door_event', self._door_request, 10)
         self.create_subscription(MissionState, '/mission/state', self._mission_state_cb, 10)
         self.create_subscription(
@@ -102,14 +108,13 @@ class PlcBridgeNode(Node):
     def _rx_loop(self):
         while rclpy.ok() and not self._stop:
             try:
-                data, _ = self._sock.recvfrom(64)
-                self._connected = True
-                self._handle_rx(data)
+                data, sender = self._sock.recvfrom(64)
+                self._handle_rx(data, sender)
             except socket.timeout:
-                self._connected = False
-                self.last_rx = 'RX timeout (1s) - baglanti koptu'
+                with self._lock:
+                    if not self._is_connected():
+                        self.last_rx = 'RX timeout - baglanti koptu'
             except OSError as exc:
-                self._connected = False
                 self.get_logger().error(f'PLC RX error: {exc}')
                 time.sleep(0.2)
 
@@ -125,45 +130,95 @@ class PlcBridgeNode(Node):
         self.last_tx = f'TX st={status} pu={pickup} do={dropoff} x={xi} y={yi}'
         return struct.pack('<BBBhh', status, pickup, dropoff, xi, yi)
 
-    def _handle_rx(self, data):
-        if len(data) < 3:
-            self.last_rx = f'RX kisa ({len(data)} byte)'
+    def _is_connected(self):
+        return (self._last_valid_rx is not None and
+                time.monotonic() - self._last_valid_rx <=
+                float(self.get_parameter('rx_timeout_sec').value))
+
+    def _handle_rx(self, data, sender):
+        expected_ip = str(self.get_parameter('plc_ip').value)
+        if sender[0] != expected_ip:
+            with self._lock:
+                self.last_rx = f'INVALID sender {sender[0]}'
+            return
+        if len(data) != 3:
+            with self._lock:
+                self.last_rx = f'INVALID length ({len(data)} byte)'
             return
         pickup_b, dropoff_b, control = data[0], data[1], data[2]
-        self.last_rx = f'RX pu={pickup_b} do={dropoff_b} ctrl={control}'
         pickup = BYTE_TO_PICKUP.get(pickup_b)
         dropoff = BYTE_TO_DROPOFF.get(dropoff_b)
-
-        with self._lock:
-            waiting_door = self._at_door
-
-        # robot kapida bekliyorsa ctrl=2 = DOOR;
-        # degilse ctrl=2 = MISSION. Ayni pakette ikisi olmaz.
-        if control == 2 and waiting_door:
-            self._grant_door()
+        if not pickup or not dropoff or control not in (1, 2):
+            with self._lock:
+                self.last_rx = f'INVALID pu={pickup_b} do={dropoff_b} ctrl={control}'
             return
 
-        # yeni gorev: ayni gorev tekrarlanabilir, ama sadece mission idle/hatali
-        # durumda. Exec durumunda tekrar BASLA ignorlenir; robot hala islemde.
-        if control == 2 and pickup and dropoff:
-            key = (pickup, dropoff)
+        with self._lock:
+            self._last_valid_rx = time.monotonic()
+            self.last_rx = f'RX pu={pickup_b} do={dropoff_b} ctrl={control}'
+            waiting_door = self._at_door
+            if waiting_door:
+                if control == 2:
+                    self._grant_door()
+                return
             state = self._mission_state
-            allow_repeat = (
-                key == self._last_plc_task and
-                state in (MissionState.IDLE, MissionState.ERROR, MissionState.EMERGENCY_STOP)
-            )
-            if key != self._last_plc_task or allow_repeat:
+            if state == MissionState.IDLE:
+                if self.active_task_id:
+                    # START published, but mission state has not caught up yet.
+                    return
+                if control == 1:
+                    self._pending_task = (pickup, dropoff)
+                    return
+                key = self._pending_task if self._pending_task == (pickup, dropoff) else (
+                    pickup, dropoff)
+                self._pending_task = None
                 self._last_plc_task = key
                 task = MissionTask()
                 task.stamp = self.get_clock().now().to_msg()
                 task.task_id = f'plc-{next(self.counter):04d}'
-                task.pickup_id = pickup
-                task.dropoff_id = dropoff
+                task.pickup_id, task.dropoff_id = key
                 task.source = 'plc_udp'
                 self.active_task_id = task.task_id
                 self.task_pub.publish(task)
-                self.get_logger().info(
-                    f'PLC gorev: {task.task_id} {pickup}->{dropoff} | state={state}')
+                self.get_logger().info(f'PLC task started: {task.task_id} {key}')
+            elif control == 1 and state in (
+                    MissionState.EXECUTING, MissionState.PAUSED_MANUAL,
+                    MissionState.PAUSED_OBSTACLE):
+                if not self._pause_requested:
+                    self._pause_requested = True
+                    self._resume_requested = False
+                    self._request_plc_hold(self.plc_pause_client, 'pause')
+            elif control == 2 and (state == MissionState.PAUSED_PLC or
+                                   self._pause_requested):
+                if not self._resume_requested:
+                    self._resume_requested = True
+                    self._request_plc_hold(self.plc_resume_client, 'resume')
+
+    def _request_plc_hold(self, client, operation):
+        if not client.service_is_ready():
+            self.get_logger().warning(f'PLC {operation} service unavailable')
+            if operation == 'pause':
+                self._pause_requested = False
+            else:
+                self._resume_requested = False
+            return
+        future = client.call_async(Trigger.Request())
+
+        def completed(result_future):
+            try:
+                result = result_future.result()
+                if result is not None and result.success:
+                    return
+                self.get_logger().warning(f'PLC {operation} rejected')
+            except Exception as exc:
+                self.get_logger().warning(f'PLC {operation} failed: {exc}')
+            with self._lock:
+                if operation == 'pause':
+                    self._pause_requested = False
+                else:
+                    self._resume_requested = False
+
+        future.add_done_callback(completed)
 
     def _grant_door(self):
         granted = DoorEvent()
@@ -186,7 +241,7 @@ class PlcBridgeNode(Node):
         phase = str(msg.phase)
         if st == MissionState.IDLE:
             status = 1
-        elif st == MissionState.WAITING_PLC:
+        elif st in (MissionState.WAITING_PLC, MissionState.PAUSED_PLC):
             status = 5
         elif st == MissionState.ERROR:
             status = 7
@@ -199,8 +254,17 @@ class PlcBridgeNode(Node):
         else:
             status = 2
         with self._lock:
-            if st == MissionState.IDLE:
+            if st != MissionState.IDLE:
+                self._task_seen_running = True
+            elif self._task_seen_running:
                 self._last_plc_task = None
+                self.active_task_id = ''
+                self._task_seen_running = False
+                self._pause_requested = False
+                self._resume_requested = False
+            if st == MissionState.EXECUTING and self._resume_requested:
+                self._resume_requested = False
+                self._pause_requested = False
             self._status_byte = status
             self._mission_state = st
             self._cur_pickup = PICKUP_TO_BYTE.get(msg.pickup_id, 0)
@@ -253,16 +317,18 @@ class PlcBridgeNode(Node):
         msg.stamp = self.get_clock().now().to_msg()
         transport = str(self.get_parameter('transport').value)
         if transport == 'udp':
-            msg.connection_state = PlcState.CONNECTED if self._connected else PlcState.ERROR
-            if not self._connected:
+            with self._lock:
+                connected = self._is_connected()
+            msg.connection_state = PlcState.CONNECTED if connected else PlcState.ERROR
+            if not connected:
                 msg.error_message = 'PLC UDP: baglanti yok / RX timeout'
         else:
             msg.connection_state = PlcState.CONNECTED
         with self._lock:
             msg.door_permission = self._door_permission_active
-        msg.active_task_id = self.active_task_id
-        msg.last_rx = self.last_rx
-        msg.last_tx = self.last_tx
+            msg.active_task_id = self.active_task_id
+            msg.last_rx = self.last_rx
+            msg.last_tx = self.last_tx
         self.state_pub.publish(msg)
 
     def destroy_node(self):

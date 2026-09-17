@@ -6,6 +6,7 @@ uint8 PAUSED_OBSTACLE=4
 uint8 PAUSED_MANUAL=5
 uint8 ERROR=6
 uint8 EMERGENCY_STOP=7
+uint8 PAUSED_PLC=8
 
 builtin_interfaces/Time stamp
 uint8 state
