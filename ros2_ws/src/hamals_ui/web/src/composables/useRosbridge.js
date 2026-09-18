@@ -18,7 +18,7 @@ export function useRosbridge(url, transport = ROSLIB) {
   const savePending = ref(false)
   const saveResult = ref(null)
   const state = computed(() => liveState(raw.value, connected.value, receivedAt.value, now.value))
-  let stateTopic, modeTopic, cameraTopic, mapTopic, plcTopic, missionTopic, cmdTopic, motionTopic, forkTopic, reconnectTimer, ageTimer, stopped = true
+  let stateTopic, modeTopic, cameraTopic, cameraCommandTopic, mapTopic, plcTopic, missionTopic, cmdTopic, motionTopic, forkTopic, reconnectTimer, ageTimer, stopped = true
   let lastStamp = null
   let finishSave = null
 
@@ -63,10 +63,10 @@ export function useRosbridge(url, transport = ROSLIB) {
     const current = liveState(raw.value, connected.value, receivedAt.value, Date.now())
     if (['switch_mode', 'estop', 'estop_ack'].includes(cmd.type)) return false
     if (cmd.type === 'switch_camera') {
-      if (typeof cmd.payload?.is_up !== 'boolean') return false
-      const sent = publish('/ui/cmd', 'std_msgs/String', { data: JSON.stringify(cmd) })
-      if (sent) cameraIsBack.value = cmd.payload.is_up
-      return sent
+      if (typeof cmd.payload?.is_up !== 'boolean' || !connected.value || !ros.value?.isConnected || stopped || !cameraCommandTopic) return false
+      cameraCommandTopic.publish(new transport.Message({ data: cmd.payload.is_up }))
+      cameraIsBack.value = cmd.payload.is_up
+      return true
     }
     if (cmd.type === 'teleop') {
       const { linear, angular } = cmd.payload || {}
@@ -112,6 +112,7 @@ export function useRosbridge(url, transport = ROSLIB) {
       cmdTopic = new transport.Topic({ ros: client, name: '/ui/cmd', messageType: 'std_msgs/String' })
       motionTopic = new transport.Topic({ ros: client, name: '/cmd_vel/manual_teleop', messageType: 'geometry_msgs/msg/Twist' })
       forkTopic = new transport.Topic({ ros: client, name: '/mcu/fork_cmd', messageType: 'std_msgs/msg/String' })
+      cameraCommandTopic = new transport.Topic({ ros: client, name: '/fork/is_up', messageType: 'std_msgs/msg/Bool' })
       modeTopic = new transport.Topic({ ros: client, name: '/switch/mode', messageType: 'std_msgs/msg/String' })
       modeTopic.subscribe(msg => {
         if (client !== ros.value || stopped || !connected.value) return
@@ -173,7 +174,7 @@ export function useRosbridge(url, transport = ROSLIB) {
       if (plcTopic) plcTopic.unsubscribe()
       if (missionTopic) missionTopic.unsubscribe()
       stateTopic = modeTopic = cameraTopic = mapTopic = plcTopic = missionTopic = null
-      motionTopic = forkTopic = null
+      motionTopic = forkTopic = cameraCommandTopic = null
       if (!stopped && !reconnectTimer) reconnectTimer = setTimeout(() => {
         reconnectTimer = null
         client.removeAllListeners()
@@ -202,7 +203,7 @@ export function useRosbridge(url, transport = ROSLIB) {
     plcTopic?.unsubscribe()
     missionTopic?.unsubscribe()
     stateTopic = modeTopic = cameraTopic = mapTopic = plcTopic = missionTopic = null
-    motionTopic = forkTopic = null
+    motionTopic = forkTopic = cameraCommandTopic = null
     connected.value = false
     plcState.value = null
     missionState.value = null
