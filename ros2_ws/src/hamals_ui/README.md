@@ -25,6 +25,10 @@ Farklı host için build sırasında `VITE_ROSBRIDGE_URL` ve isteğe bağlı
 Kamera: `http://<host>:8081/stream?type=mjpeg&topic=/camera/image_raw`.
 Topic/host `config/params.yaml` içinden gelir. Launch `vvs_port` argümanı hem
 web_video_server'a hem UI köprüsüne uygulanır. `web_video_server` yoksa görüntü unavailable kalır.
+Kamera sekmesindeki “Kamera Değiştir” butonu canlı modda `/ui/cmd` üzerinden
+`ui_bridge_node`'a gider; node `/fork/is_up` (`std_msgs/Bool`) yayınlar.
+`false` ön, `true` arka kamerayı seçer. Tarayıcı aynı topic'i dinleyerek seçimi
+güncel tutar; mock modunda seçim yalnızca yerel state'i değiştirir.
 
 ## Mock / live ayrımı
 

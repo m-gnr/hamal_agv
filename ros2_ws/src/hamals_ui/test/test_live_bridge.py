@@ -38,7 +38,7 @@ def bridge(monkeypatch):
     module('rclpy.qos', QoSProfile=Mock(), ReliabilityPolicy=Mock(), DurabilityPolicy=Mock())
     module('rclpy.action', ActionClient=Mock())
     module('ament_index_python.packages', get_package_share_directory=Mock())
-    module('std_msgs.msg', String=Message)
+    module('std_msgs.msg', Bool=Message, String=Message)
     module('geometry_msgs.msg', Twist=Twist)
     module('hamals_interfaces.msg', ForkCommand=ForkCommand)
     module('hamals_interfaces.action', ExecuteMission=NS(Goal=Goal))
@@ -64,6 +64,7 @@ def bridge(monkeypatch):
     node._pause_client.service_is_ready.return_value = True
     node._resume_client.service_is_ready.return_value = True
     node._fork_pub = Mock()
+    node._camera_select_pub = Mock()
     node._state_pub = Mock()
     node.get_logger = Mock(return_value=Mock())
     node.get_clock = Mock(return_value=Mock())
@@ -81,6 +82,16 @@ def receive(node, topic, **fields):
 
 def command(node, kind, **payload):
     node._cmd_callback(NS(data=json.dumps({'type': kind, 'payload': payload})))
+
+
+def test_camera_selection_publishes_bool_without_manual_mode(bridge):
+    command(bridge, 'switch_camera', is_up=True)
+    assert bridge._camera_select_pub.publish.call_args.args[0].data is True
+    command(bridge, 'switch_camera', is_up=False)
+    assert bridge._camera_select_pub.publish.call_args.args[0].data is False
+    assert bridge._camera_select_pub.publish.call_count == 2
+    command(bridge, 'switch_camera', is_up='false')
+    assert bridge._camera_select_pub.publish.call_count == 2
 
 
 @pytest.mark.parametrize('mode', ['manual', 'auto', 'unknown', 'MANUAL', ' manual', ''])
@@ -311,7 +322,7 @@ def test_live_constructor_creates_real_fork_and_mission_transports(bridge):
     bridge.create_client = Mock()
     mod.UIBridgeNode.__init__(bridge)
     topics = [call.args[1] for call in bridge.create_publisher.call_args_list]
-    assert topics == ['/ui/state', '/fork/cmd']
+    assert topics == ['/ui/state', '/fork/cmd', '/fork/is_up']
     services = [call.args[1] for call in bridge.create_client.call_args_list]
     assert '/mission/pause' in services and '/mission/resume' in services
     assert mod.ActionClient.call_args.args[2] == '/mission/execute'

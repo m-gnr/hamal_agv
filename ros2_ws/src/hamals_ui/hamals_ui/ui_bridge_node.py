@@ -19,7 +19,7 @@ import yaml
 from ament_index_python.packages import get_package_share_directory
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
-from std_msgs.msg import String
+from std_msgs.msg import Bool, String
 from rclpy.action import ActionClient
 from hamals_interfaces.action import ExecuteMission
 from hamals_interfaces.msg import ForkCommand
@@ -240,6 +240,7 @@ class UIBridgeNode(Node):
             self._pause_client = self.create_client(PauseMission, "/mission/pause")
             self._resume_client = self.create_client(ResumeMission, "/mission/resume")
             self._fork_pub = self.create_publisher(ForkCommand, "/fork/cmd", 10)
+            self._camera_select_pub = self.create_publisher(Bool, "/fork/is_up", 10)
             plc_node = self._params["network"]["parameter_node"]
             self._plc_params = self.create_client(GetParameters, plc_node + "/get_parameters")
             self._plc_params_pending = False
@@ -689,6 +690,13 @@ class UIBridgeNode(Node):
                                "down": ForkCommand.DOWN}[action]
                 self._fork_pub.publish(msg)
                 self._result(kind, "sent", "Fork command sent; observe /fork/state")
+            elif kind == "switch_camera":
+                is_up = payload.get("is_up")
+                if not isinstance(is_up, bool):
+                    return
+                msg = Bool()
+                msg.data = is_up
+                self._camera_select_pub.publish(msg)
             elif kind == "start_mission":
                 if self._goal_handle or self._goal_pending:
                     raise ValueError("UI mission already active/pending")

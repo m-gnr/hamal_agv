@@ -9,6 +9,7 @@ export function useRosbridge(url, transport = ROSLIB) {
   const missionState = shallowRef(null)
   const connected = ref(false)
   const physicalMode = ref('unknown')
+  const cameraIsBack = ref(false)
   const ros = shallowRef(null)
   const receivedAt = ref(null)
   const now = ref(Date.now())
@@ -17,7 +18,7 @@ export function useRosbridge(url, transport = ROSLIB) {
   const savePending = ref(false)
   const saveResult = ref(null)
   const state = computed(() => liveState(raw.value, connected.value, receivedAt.value, now.value))
-  let stateTopic, modeTopic, mapTopic, plcTopic, missionTopic, cmdTopic, motionTopic, forkTopic, reconnectTimer, ageTimer, stopped = true
+  let stateTopic, modeTopic, cameraTopic, mapTopic, plcTopic, missionTopic, cmdTopic, motionTopic, forkTopic, reconnectTimer, ageTimer, stopped = true
   let lastStamp = null
   let finishSave = null
 
@@ -61,6 +62,12 @@ export function useRosbridge(url, transport = ROSLIB) {
     if (['start_mission', 'pause_mission', 'resume_mission', 'cancel_mission'].includes(cmd.type) && plcState.value?.transport !== 'mock') return false
     const current = liveState(raw.value, connected.value, receivedAt.value, Date.now())
     if (['switch_mode', 'estop', 'estop_ack'].includes(cmd.type)) return false
+    if (cmd.type === 'switch_camera') {
+      if (typeof cmd.payload?.is_up !== 'boolean') return false
+      const sent = publish('/ui/cmd', 'std_msgs/String', { data: JSON.stringify(cmd) })
+      if (sent) cameraIsBack.value = cmd.payload.is_up
+      return sent
+    }
     if (cmd.type === 'teleop') {
       const { linear, angular } = cmd.payload || {}
       if (!Number.isFinite(linear) || !Number.isFinite(angular)) return false
@@ -112,6 +119,11 @@ export function useRosbridge(url, transport = ROSLIB) {
         if (physicalMode.value === 'manual' && msg.data === 'auto') stopMotion()
         physicalMode.value = msg.data
       })
+      cameraTopic = new transport.Topic({ ros: client, name: '/fork/is_up', messageType: 'std_msgs/msg/Bool' })
+      cameraTopic.subscribe(msg => {
+        if (client !== ros.value || stopped || !connected.value || typeof msg.data !== 'boolean') return
+        cameraIsBack.value = msg.data
+      })
       stateTopic = new transport.Topic({ ros: client, name: '/ui/state', messageType: 'std_msgs/String' })
       stateTopic.subscribe(msg => {
         if (client !== ros.value || stopped) return
@@ -156,10 +168,11 @@ export function useRosbridge(url, transport = ROSLIB) {
       missionState.value = null
       if (stateTopic) stateTopic.unsubscribe()
       if (modeTopic) modeTopic.unsubscribe()
+      if (cameraTopic) cameraTopic.unsubscribe()
       if (mapTopic) mapTopic.unsubscribe()
       if (plcTopic) plcTopic.unsubscribe()
       if (missionTopic) missionTopic.unsubscribe()
-      stateTopic = modeTopic = mapTopic = plcTopic = missionTopic = null
+      stateTopic = modeTopic = cameraTopic = mapTopic = plcTopic = missionTopic = null
       motionTopic = forkTopic = null
       if (!stopped && !reconnectTimer) reconnectTimer = setTimeout(() => {
         reconnectTimer = null
@@ -184,10 +197,11 @@ export function useRosbridge(url, transport = ROSLIB) {
     clearInterval(ageTimer)
     stateTopic?.unsubscribe()
     modeTopic?.unsubscribe()
+    cameraTopic?.unsubscribe()
     mapTopic?.unsubscribe()
     plcTopic?.unsubscribe()
     missionTopic?.unsubscribe()
-    stateTopic = modeTopic = mapTopic = plcTopic = missionTopic = null
+    stateTopic = modeTopic = cameraTopic = mapTopic = plcTopic = missionTopic = null
     motionTopic = forkTopic = null
     connected.value = false
     plcState.value = null
@@ -198,5 +212,5 @@ export function useRosbridge(url, transport = ROSLIB) {
     ros.value?.close()
     ros.value = null
   }
-  return { state, plcState, missionState, physicalMode, connected, ros, mapFeed, mapReady, savePending, saveResult, saveMap, connect, disconnect, publish, sendCmd }
+  return { state, plcState, missionState, physicalMode, cameraIsBack, connected, ros, mapFeed, mapReady, savePending, saveResult, saveMap, connect, disconnect, publish, sendCmd }
 }
