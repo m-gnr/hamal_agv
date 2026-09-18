@@ -6,13 +6,14 @@ import { renderToString } from 'vue/server-renderer'
 import { liveState } from '../src/composables/liveState.js'
 import { createMapFeed } from '../src/composables/occupancyGrid.js'
 
-let server, Panel, Header, PlcPanel
+let server, Panel, Header, PlcPanel, MockCamera
 // Compile the actual Vue components; transports remain absent in render tests.
 test.before(async () => {
   server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' })
   Panel = (await server.ssrLoadModule('/src/components/LivePanel.vue')).default
   Header = (await server.ssrLoadModule('/src/components/TopBar.vue')).default
   PlcPanel = (await server.ssrLoadModule('/src/components/PlcStatusPanel.vue')).default
+  MockCamera = (await server.ssrLoadModule('/src/components/TabCamera.vue')).default
 })
 test.after(async () => { await server?.close() })
 const render = (component, props) => renderToString(createSSRApp({ render: () => h(component, component === Panel ? { mapFeed: createMapFeed(), ...props } : props) }))
@@ -25,6 +26,15 @@ for (const tab of ['dashboard', 'map', 'mission', 'manual', 'camera', 'errors', 
     if (tab === 'camera') assert.match(html, /Camera unavailable/)
   })
 }
+test('camera switch is directly below the stream in the active live and mock camera cards', async () => {
+  const live = await render(Panel, { tab: 'camera', state: liveState(null, true, null), rosConnected: true, cameraIsBack: true })
+  assert.ok(live.indexOf('camera-stream') < live.indexOf('camera-controls'))
+  assert.match(live, /class="camera-controls"[\s\S]*?Kamera Değiştir · Kamera: Arka/)
+  assert.doesNotMatch(live, /class="camera-switch"[^>]*disabled/)
+  const mock = await render(MockCamera, { state: { sensors: {} }, cameraIsBack: false })
+  assert.ok(mock.indexOf('camera-stream') < mock.indexOf('camera-controls'))
+  assert.match(mock, /class="camera-controls"[\s\S]*?Kamera Değiştir · Kamera: Ön/)
+})
 test('header always renders BATARYA 77% independently of telemetry', async () => {
   for (const state of [
     liveState(null, false, null),

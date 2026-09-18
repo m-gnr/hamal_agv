@@ -51,18 +51,13 @@
       <SidebarNav :active="activeTab" @change="activeTab = $event" />
 
       <main class="main-content">
-        <div v-if="activeTab === 'camera'" class="camera-toolbar">
-          <button class="camera-switch" type="button" :disabled="!isMock && !bridge.connected.value" @click="switchCamera">
-            Kamera Değiştir · Kamera: {{ cameraIsBack ? 'Arka' : 'Ön' }}
-          </button>
-        </div>
-        <LivePanel v-if="!isMock" :state="state" :plc-state="bridge.plcState.value" :mission-state="bridge.missionState.value" :ros-connected="bridge.connected.value" :physical-mode="physicalMode" :tab="activeTab" :map-feed="bridge.mapFeed" :map-connected="bridge.connected.value" :map-ready="bridge.mapReady.value" :save-pending="bridge.savePending.value" :save-result="bridge.saveResult.value" @save-map="bridge.saveMap()" @send-cmd="sendCmd" />
+        <LivePanel v-if="!isMock" :state="state" :plc-state="bridge.plcState.value" :mission-state="bridge.missionState.value" :ros-connected="bridge.connected.value" :physical-mode="physicalMode" :camera-is-back="cameraIsBack" :tab="activeTab" :map-feed="bridge.mapFeed" :map-connected="bridge.connected.value" :map-ready="bridge.mapReady.value" :save-pending="bridge.savePending.value" :save-result="bridge.saveResult.value" @save-map="bridge.saveMap()" @send-cmd="sendCmd" @switch-camera="switchCamera" />
         <template v-else>
         <TabDashboard v-if="activeTab === 'dashboard'" :state="state" @send-cmd="sendCmd" />
         <TabMap       v-if="activeTab === 'map'"       :state="state" :map-feed="mockMapFeed" :map-connected="true" @send-cmd="sendCmd" />
         <TabMission   v-if="activeTab === 'mission'"   :state="state" :is-mock="isMock" @send-cmd="sendCmd" />
         <TabManual    v-if="activeTab === 'manual'"    :state="state" :physical-mode="physicalMode" :is-mock="isMock" @send-cmd="sendCmd" />
-        <TabCamera    v-if="activeTab === 'camera'"    :state="state" />
+        <TabCamera    v-if="activeTab === 'camera'"    :state="state" :camera-is-back="cameraIsBack" @switch-camera="switchCamera" />
         <TabErrors    v-if="activeTab === 'errors'"    :state="state" />
         <TabSettings  v-if="activeTab === 'settings'"  :state="state" />
         </template>
@@ -322,19 +317,12 @@ body, #app {
   overflow: hidden;
 }
 .main-content {
-  display: flex;
-  flex-direction: column;
   flex: 1;
   min-width: 0;
   overflow: hidden;
   padding: 12px;
   background: var(--bg);
 }
-.main-content > :not(.camera-toolbar) { flex: 1; min-height: 0; }
-.camera-toolbar { display: flex; justify-content: flex-end; flex-shrink: 0; margin-bottom: 10px; }
-.camera-switch { padding: 9px 13px; border: 1px solid var(--accent); border-radius: var(--radius-sm); background: rgba(59,130,246,.15); color: var(--text); font: inherit; cursor: pointer; }
-.camera-switch:hover:not(:disabled) { background: rgba(59,130,246,.25); }
-.camera-switch:disabled { opacity: .45; cursor: not-allowed; }
 
 /* ── Global animation ──────────────────────────────────── */
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.55} }

@@ -77,7 +77,12 @@
       <Card v-if="show('dashboard', 'camera')">
         <template #header><SectionTitle>Kamera · {{ cameraTopic }}</SectionTitle></template>
         <CameraStream :url="state.cameras?.stream_url" :fresh="health(cameraTopic) === 'live'" />
-        <p>{{ health(cameraTopic) }}</p>
+        <div class="camera-controls">
+          <p>{{ health(cameraTopic) }}</p>
+          <button v-if="tab === 'camera'" class="camera-switch" type="button" :disabled="!rosConnected" @click="emit('switch-camera')">
+            Kamera Değiştir · Kamera: {{ cameraIsBack ? 'Arka' : 'Ön' }}
+          </button>
+        </div>
       </Card>
       <Card v-if="show('dashboard', 'camera')">
         <template #header><SectionTitle>QR / Çizgi</SectionTitle></template>
@@ -111,8 +116,8 @@ import CameraStream from './CameraStream.vue'
 import MapViewer from './MapViewer.vue'
 import PlcStatusPanel from './PlcStatusPanel.vue'
 import { freshness, qrActive, safetySummary } from '../composables/liveState.js'
-const props = defineProps({ state: { type: Object, required: true }, plcState: Object, missionState: Object, rosConnected: Boolean, tab: String, physicalMode: { type: String, default: 'unknown' }, mapFeed: { type: Object, required: true }, mapConnected: Boolean, mapReady: Boolean, savePending: Boolean, saveResult: Object })
-const emit = defineEmits(['send-cmd', 'save-map'])
+const props = defineProps({ state: { type: Object, required: true }, plcState: Object, missionState: Object, rosConnected: Boolean, cameraIsBack: Boolean, tab: String, physicalMode: { type: String, default: 'unknown' }, mapFeed: { type: Object, required: true }, mapConnected: Boolean, mapReady: Boolean, savePending: Boolean, saveResult: Object })
+const emit = defineEmits(['send-cmd', 'save-map', 'switch-camera'])
 const cameraTopic = computed(() => props.state.cameras?.topic || '/camera/image_raw/compressed')
 const task = reactive({ task_id: '', pickup_id: '', dropoff_id: '' })
 const show = (...tabs) => tabs.includes(props.tab)
@@ -149,4 +154,8 @@ form { margin-top: 18px; display: grid; gap: 8px; }
 label { display: grid; gap: 5px; font-size: 12px; }
 input, button { border: 1px solid var(--border); border-radius: 6px; padding: 9px; background: var(--panel-2); color: var(--text); font: inherit; }
 button { cursor: pointer; }button:disabled { opacity: .4; cursor: not-allowed; }.buttons { display: flex; gap: 8px; margin-top: 12px; }
+.camera-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.camera-controls p { margin: 0; }
+.camera-switch { border-color: var(--accent); background: rgba(59,130,246,.15); white-space: nowrap; }
+.camera-switch:hover:not(:disabled) { background: rgba(59,130,246,.25); }
 </style>

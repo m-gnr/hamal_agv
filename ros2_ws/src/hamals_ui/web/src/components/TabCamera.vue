@@ -13,6 +13,12 @@
       <div class="cam-stream-wrap">
         <CameraStream :url="s.cameras?.stream_url" :fresh="s.sensors?.camera === true" />
       </div>
+      <div class="camera-controls">
+        <span>{{ s.sensors?.camera === true ? 'live' : 'unavailable' }}</span>
+        <button class="camera-switch" type="button" @click="emit('switch-camera')">
+          Kamera Değiştir · Kamera: {{ cameraIsBack ? 'Arka' : 'Ön' }}
+        </button>
+      </div>
     </Card>
 
     <!-- Right column -->
@@ -92,7 +98,8 @@ import SectionTitle from './SectionTitle.vue'
 import StatPill from './StatPill.vue'
 import LabelRow from './LabelRow.vue'
 
-const props = defineProps({ state: Object })
+const props = defineProps({ state: Object, cameraIsBack: Boolean })
+const emit = defineEmits(['switch-camera'])
 const s = computed(() => props.state || {})
 
 const LINE_STATUS = { tracking: 'Takip Ediliyor', lost: 'Çizgi Kayboldu' }
@@ -176,6 +183,9 @@ function fmt(v, d = 2) { return (v ?? 0).toFixed(d) }
   overflow: hidden;
 }
 .cam-stream { max-width: 100%; max-height: 100%; display: block; }
+.camera-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 10px; color: var(--text-dim); font-size: 12px; }
+.camera-switch { padding: 9px; border: 1px solid var(--accent); border-radius: var(--radius-sm); background: rgba(59,130,246,.15); color: var(--text); font: inherit; cursor: pointer; white-space: nowrap; }
+.camera-switch:hover { background: rgba(59,130,246,.25); }
 .no-stream  { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px; color: var(--text-dim); font-size: 12px; text-align: center; }
 
 .cam-panel-footer { padding: 5px 10px; background: var(--panel-2); border-top: 1px solid var(--border); flex-shrink: 0; }
