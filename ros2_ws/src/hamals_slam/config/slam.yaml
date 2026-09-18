@@ -36,7 +36,7 @@ slam_toolbox:
     # Map Parameters
     # =================================================
     resolution: 0.03                  
-    max_laser_range: 3.5              
+    max_laser_range: 30.0    # HUBTUAM 3.5 m           
     minimum_travel_distance: 0.03
     minimum_travel_heading: 0.03
 

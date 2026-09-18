@@ -106,7 +106,7 @@ constexpr float YAW_CORRECTION_KP = 2.0f;
 // ======================================================
 
 constexpr float WHEEL_PID_KP = 30.0f;
-constexpr float WHEEL_PID_KI = 0.0f;
+constexpr float WHEEL_PID_KI = 4.0f;
 constexpr float WHEEL_PID_KD = 0.0f;
 
 constexpr float WHEEL_PID_RAMP_STEP = 15.0f;
