@@ -1,7 +1,7 @@
 hamals_plc_bridge:
   ros__parameters:
     transport: udp
-    plc_ip: 10.100.68.144
+    plc_ip: 172.20.10.4 #  192.168.100.100  
     plc_port: 1515
     tx_rate_hz: 1.0
     rx_timeout_sec: 1.0
