@@ -16,7 +16,7 @@ scan_processor_node:
       rear:
         min: -0.785    # -45°
         max:  0.785    # +45°
-        danger_distance: 0.80
+        danger_distance: 0.48
 
       right:
         min:  0.785
