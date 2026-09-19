@@ -34,11 +34,13 @@ class DockingNode(Node):
         super().__init__("hamals_docking")
 
         # Line follow (kucuk calisan script ile AYNI degerler)
-        self.speed = 0.10
-        self.gain = 0.050
-        self.deadband = 18.0
+
+        
+        self.speed = 0.06
+        self.gain = 0.045
+        self.deadband = 6.0
         self.smoothing = 0.35
-        self.max_turn = 0.45
+        self.max_turn = 0.30
         self.invert = True
         self.line_lost_sec = 5.0
         # Extra smoothing / angular acceleration limit

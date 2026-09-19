@@ -12,22 +12,22 @@ scan_processor_node:
       rear:
         min: -0.785    # -45°
         max:  0.785    # +45°
-        danger_distance: 0.45
+        danger_distance: 0.80
 
       right:
         min:  0.785
         max:  2.356    # 135°
-        danger_distance: 0.17
+        danger_distance: 0.20
 
       left:
         min: -2.356
         max: -0.785
-        danger_distance: 0.17
+        danger_distance: 0.20
 
       front: # FORK MASK AREA
         min:  2.356
         max: -2.356
-        danger_distance: 0.63
+        danger_distance: 0.85
 
     fork_mask:
       enabled: true

@@ -91,7 +91,7 @@ planner_server:
 
       minimum_turning_radius: 0.40
 
-      reverse_penalty: 0.0
+      reverse_penalty: 1.0
 
       change_penalty: 0.0
 
@@ -132,7 +132,7 @@ controller_server:
     FollowPath:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
 
-      desired_linear_vel: 0.25
+      desired_linear_vel: 0.15
 
       max_linear_accel: 0.10
       max_linear_decel: 0.15
@@ -193,7 +193,7 @@ controller_server:
 
       required_movement_radius: 0.10
 
-      movement_time_allowance: 60.0
+      movement_time_allowance: 600.0
 
 # ------------------------------------------------------------
 # Behavior Server
@@ -261,10 +261,10 @@ velocity_smoother:
     # Maximum velocities
     # --------------------------------------------------------
 
-    max_velocity: [0.30, 0.0, 0.45]
+    max_velocity: [0.30, 0.0, 0.35]
 
-    max_accel:  [0.35, 0.0, 0.80]
-    max_decel:  [-0.35, 0.0, -0.80]
+    max_accel:  [0.30, 0.0, 0.50]
+    max_decel:  [-0.15, 0.0, -0.50]
 
     min_velocity: [-0.10, 0.0, -0.25]
 
@@ -335,7 +335,6 @@ global_costmap:
 
       plugins:
         - "static_layer"
-        - "obstacle_layer"
         - "inflation_layer"
 
       # ------------------------------------------------------
@@ -377,7 +376,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
 
-        inflation_radius: 0.30
+        inflation_radius: 0.15
 
         cost_scaling_factor: 3.0
 
@@ -445,7 +444,7 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
 
-        inflation_radius: 0.15
+        inflation_radius: 0.10
 
         cost_scaling_factor: 3.0
 
