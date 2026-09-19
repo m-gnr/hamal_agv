@@ -3,6 +3,7 @@ hamals_mission:
     nav_timeout_sec: 180.0
     dock_timeout_sec: 45.0
     fork_timeout_sec: 60.0
+    fork_state_timeout_sec: 0.5
     door_timeout_sec: 120.0
     max_nav_retries: 1
     home_node: START

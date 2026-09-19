@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import math
 import threading
 import time
 
@@ -67,6 +68,20 @@ class DockingNode(Node):
         self.dropoff_timeout_sec = 60.0
         self.dropoff_turn_timeout_sec = 60.0
 
+        self.dropoff_escape_enabled = self.declare_parameter(
+            "dropoff_escape.enabled", True).value
+        self.dropoff_escape_distance_m = self.declare_parameter(
+            "dropoff_escape.distance_m", 0.50).value
+        self.dropoff_escape_speed_mps = self.declare_parameter(
+            "dropoff_escape.speed_mps", 0.08).value
+        self.dropoff_escape_timeout_sec = self.declare_parameter(
+            "dropoff_escape.timeout_sec", 8.0).value
+        for value in (self.dropoff_escape_distance_m,
+                      self.dropoff_escape_speed_mps,
+                      self.dropoff_escape_timeout_sec):
+            if not math.isfinite(value) or value <= 0.0:
+                raise ValueError("dropoff_escape parameters must be finite and positive")
+
         # MZ80
         self.mz80_active_low = False
 
@@ -100,6 +115,12 @@ class DockingNode(Node):
         self.cmd_pub = self.create_publisher(
             Twist, "/cmd_vel/docking", 10
         )
+
+        self.dropoff_escape_pub = self.create_publisher(
+            Bool, "/docking/dropoff_escape_active", 1)
+        self.dropoff_escape_active = False
+        self.shutting_down = False
+        self.set_dropoff_escape_active(False)
 
         self.create_subscription(
             Bool, "/line/detected",
@@ -199,6 +220,74 @@ class DockingNode(Node):
         for _ in range(3):
             self.cmd_pub.publish(cmd)
             time.sleep(0.02)
+
+    def set_dropoff_escape_active(self, active):
+        with self.lock:
+            active = bool(active) and not self.shutting_down
+            changed = active != self.dropoff_escape_active
+            self.dropoff_escape_active = active
+            self.dropoff_escape_pub.publish(Bool(data=active))
+        if changed:
+            self.get_logger().info(
+                "DROPOFF ESCAPE MASK " + ("ON" if active else "OFF"))
+
+    def drive_reverse_odom(self, goal_handle, distance_m, speed):
+        """Straight reverse after mission confirms LOWER_LOAD; heartbeat is loop-owned."""
+        try:
+            if not self.dropoff_escape_enabled:
+                return True, "dropoff escape disabled"
+            with self.lock:
+                start_x, start_y = self.odom_x, self.odom_y
+                odom_last = self.odom_last_seen
+            now = time.monotonic()
+            if odom_last is None or now - odom_last > self.odom_timeout_sec:
+                self.get_logger().error("DROPOFF ESCAPE ABORT | odom stale or unavailable")
+                return False, "escape odometry unavailable"
+            if not all(math.isfinite(v) for v in (start_x, start_y, distance_m, speed)):
+                return False, "escape invalid odometry or parameters"
+            if distance_m <= 0.0 or speed == 0.0:
+                return False, "escape invalid distance or speed"
+            deadline = now + self.dropoff_escape_timeout_sec
+            last_log = now
+            self.get_logger().info("DROPOFF ESCAPE ARMED")
+            self.get_logger().info(
+                f"DROPOFF ESCAPE START | target={distance_m:.2f} m | speed={abs(speed):.2f} m/s")
+            while rclpy.ok() and not self.shutting_down:
+                if goal_handle.is_cancel_requested:
+                    return False, "escape cancelled"
+                now = time.monotonic()
+                with self.lock:
+                    x, y, odom_last = self.odom_x, self.odom_y, self.odom_last_seen
+                if odom_last is None or now - odom_last > self.odom_timeout_sec:
+                    self.get_logger().error("DROPOFF ESCAPE ABORT | odom stale")
+                    return False, "escape odom stale"
+                if not all(math.isfinite(v) for v in (x, y)):
+                    return False, "escape invalid odometry"
+                if now >= deadline:
+                    self.get_logger().error("DROPOFF ESCAPE TIMEOUT")
+                    return False, "escape timeout"
+                distance = math.hypot(x - start_x, y - start_y)
+                if distance >= distance_m:
+                    self.get_logger().info(f"DROPOFF ESCAPE DONE | travelled={distance:.2f} m")
+                    return True, "dropoff escape complete"
+                # Renew only while this bounded motion loop makes progress.
+                # A blocked/crashed loop cannot keep the scan override alive.
+                self.set_dropoff_escape_active(True)
+                cmd = Twist()
+                cmd.linear.x = -abs(speed)
+                cmd.angular.z = 0.0
+                self.cmd_pub.publish(cmd)
+                if now - last_log >= 0.5:
+                    self.get_logger().info(
+                        f"DROPOFF ESCAPE | travelled={distance:.2f} / {distance_m:.2f} m")
+                    last_log = now
+                time.sleep(0.05)
+            return False, "escape ROS shutdown"
+        finally:
+            try:
+                self.stop_robot()
+            finally:
+                self.set_dropoff_escape_active(False)
 
     # ==================================================
     # yous: pickup - odometri ile duz ilerle (12cm), sonra dur
@@ -635,7 +724,7 @@ class DockingNode(Node):
                 f"op={operation}"
             )
 
-            if operation not in ("pickup", "dropoff"):
+            if operation not in ("pickup", "dropoff", "dropoff_escape"):
                 goal_handle.abort()
                 return Dock.Result(
                     success=False,
@@ -644,7 +733,11 @@ class DockingNode(Node):
 
             # Pickup: mevcut on kamera line-follow + MZ80 mantigi.
             # Dropoff: geri kamera line-follow + 70cm + 180 derece donus.
-            if operation == "dropoff":
+            if operation == "dropoff_escape":
+                success, message = self.drive_reverse_odom(
+                    goal_handle, self.dropoff_escape_distance_m,
+                    self.dropoff_escape_speed_mps)
+            elif operation == "dropoff":
                 success, message = self.follow_reverse_line(goal_handle)
                 if success:
                     success, message = self.rotate_dropoff_180(goal_handle)
@@ -670,7 +763,10 @@ class DockingNode(Node):
             return Dock.Result(success=False, message=str(exc))
 
         finally:
-            self.stop_robot()
+            try:
+                self.stop_robot()
+            finally:
+                self.set_dropoff_escape_active(False)
             with self.lock:
                 self.action_running = False
                 self.active = False
@@ -678,8 +774,14 @@ class DockingNode(Node):
                 self.mz80_detected = False
 
     def destroy_node(self):
-        self.stop_robot()
-        super().destroy_node()
+        self.shutting_down = True
+        try:
+            self.stop_robot()
+        finally:
+            try:
+                self.set_dropoff_escape_active(False)
+            finally:
+                super().destroy_node()
 
 
 def main(args=None):
@@ -693,7 +795,11 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        node.stop_robot()
+        node.shutting_down = True
+        try:
+            node.stop_robot()
+        finally:
+            node.set_dropoff_escape_active(False)
         executor.shutdown()
         node.destroy_node()
         if rclpy.ok():

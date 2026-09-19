@@ -86,5 +86,50 @@ int main()
     state.receive(false, at(601));
     checkObstacles(state, at(601), false);
 
+    // A-D: normal switch behavior and independent, narrow escape override.
+    for (bool lower : {false, true})
+    {
+        ForkMaskState escape(true, 0.5, 1.0);
+        escape.receive(lower, at(0));
+        escape.receiveEscape(false, at(0));
+        check(escape.active(at(0)) == !lower);
+        check(!escape.escapeActive(at(0)));
+        escape.receiveEscape(true, at(0));
+        check(escape.escapeActive(at(0)));
+        check(escape.active(at(0)) == !lower);
+        check(escape.escapeActive(at(1000)));
+        // E: stale override falls back to a freshly received switch state.
+        escape.receive(lower, at(1001));
+        check(!escape.escapeActive(at(1001)));
+        check(escape.active(at(1001)) == !lower);
+        escape.receiveEscape(true, at(1100));
+        escape.receiveEscape(false, at(1101));
+        check(!escape.escapeActive(at(1101)));
+    }
+    disabled.receiveEscape(true, at(0));
+    check(!disabled.escapeActive(at(0)));
+
+    // Escape excludes only +/-0.20 rad around the fork at pi. Front beams
+    // outside that sector, and every other region, still detect obstacles.
+    const ScanData scan({0.15f, 0.15f, 0.15f, 0.15f, 0.15f, 0.15f, 0.15f,
+                         0.15f, 0.15f, 0.15f, 0.15f, 0.15f, 0.15f}, -3.0, 0.5, 0.0);
+    const ScanSegmenter segmenter({
+        {"rear", -0.785, 0.785}, {"right", 0.785, 2.356},
+        {"left", -2.356, -0.785}, {"front", 2.356, -2.356}
+    });
+    const ScanSegmenter::Region mask{"escape", M_PI - 0.20, -M_PI + 0.20};
+    const auto segments = segmenter.segment(scan, "", &mask);
+    check(segments.at("front").size() == 2); // +/-2.5 stay visible.
+    check(segments.at("rear").size() == 3);
+    check(segments.at("left").size() == 3);
+    check(segments.at("right").size() == 3);
+    ObstacleDetector detector;
+    detector.setDangerDistance(0.17);
+    const auto obstacles = detector.detect(ScanMetrics::compute(scan, segments));
+    for (const auto* region : {"front", "rear", "left", "right"})
+    {
+        check(obstacles.at(region).has_obstacle);
+    }
+
     return 0;
 }

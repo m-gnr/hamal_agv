@@ -46,7 +46,8 @@ class MissionNode(Node):
         super().__init__('hamals_mission')
         for name, value in {
             'nav_timeout_sec': 180.0, 'dock_timeout_sec': 45.0,
-            'fork_timeout_sec': 60.0, 'door_timeout_sec': 120.0,
+            'fork_timeout_sec': 60.0, 'fork_state_timeout_sec': 0.5,
+            'door_timeout_sec': 120.0,
             'max_nav_retries': 1, 'home_node': 'START', 'door_id': 'MAIN_DOOR',
             # yous: kapi QR isimleri (GetDoor bunlari donmuyor) + tesbit ayari
             'door_qr_outbound': 'KAPI1', 'door_qr_return': 'KAPI2',  # yous: resmi
@@ -81,6 +82,8 @@ class MissionNode(Node):
         self._safety = None
         self._world_checksum = ''
         self._fork_state = None
+        self._fork_state_last_seen = None
+        self._fork_state_seq = 0
         self._door_permission = None
         # yous: nav sirasinda QR takibi
         self._qr_detected = False
@@ -368,7 +371,10 @@ class MissionNode(Node):
             self._world_checksum = msg.config_checksum
 
     def _fork_received(self, msg):
-        self._fork_state = msg
+        with self._lock:
+            self._fork_state = msg
+            self._fork_state_last_seen = time.monotonic()
+            self._fork_state_seq += 1
 
     def _door_received(self, msg):
         if msg.event == DoorEvent.PERMISSION_GRANTED:
@@ -412,7 +418,7 @@ class MissionNode(Node):
         self._mctx.top_state = MissionState.EXECUTING
         self._publish_state()
 
-    def _wait_ready(self):
+    def _wait_ready(self, arm_dropoff_escape=False):
         while rclpy.ok():
             if self._cancel:
                 raise MissionFailure('mission canceled')
@@ -426,7 +432,8 @@ class MissionNode(Node):
                 self._mctx.top_state = MissionState.PAUSED_MANUAL
                 self._mctx.pause_reason = safety.reason
                 self._manual_resume_required = True
-            elif safety and not safety.motion_allowed:
+            elif (safety and not safety.motion_allowed
+                  and not (arm_dropoff_escape and safety.state == SafetyState.OBSTACLE)):
                 self._mctx.top_state = MissionState.PAUSED_OBSTACLE
                 self._mctx.pause_reason = safety.reason
             elif not self._manual_resume_required:
@@ -542,7 +549,12 @@ class MissionNode(Node):
         raise MissionFailure(f'Nav2 failed for {node_id}')
 
     def _dock(self, station, operation):
-        self._wait_ready()
+        # Allow dispatch to arm the narrow mask when the released load blocks
+        # readiness. The safety controller still gates every velocity command.
+        if operation == 'dropoff_escape':
+            self._wait_ready(arm_dropoff_escape=True)
+        else:
+            self._wait_ready()
         self._mctx.expected_qr = station.expected_qr
         self._set_phase(
             f'DOCK_{operation.upper()}',
@@ -558,9 +570,13 @@ class MissionNode(Node):
             self.dock_client.send_goal_async(goal), 10.0, 'send dock goal')
         if not sent.accepted:
             raise MissionFailure('dock goal rejected')
-        result = self._wait_future(
-            sent.get_result_async(),
-            float(self.get_parameter('dock_timeout_sec').value), 'dock')
+        try:
+            result = self._wait_future(
+                sent.get_result_async(),
+                float(self.get_parameter('dock_timeout_sec').value), 'dock')
+        except Exception:
+            sent.cancel_goal_async()
+            raise
         if result.status != 4 or not result.result.success:
             raise MissionFailure(result.result.message)
         self._mctx.verified_qr = station.expected_qr
@@ -572,26 +588,56 @@ class MissionNode(Node):
         time.sleep(0.5)
         msg = ForkCommand()
         msg.command = command
-        self.fork_pub.publish(msg)
+        # Snapshot after the STOP delay, atomically with the actual command.
+        with self._lock:
+            start_seq = self._fork_state_seq
+            command_time = time.monotonic()
+            self.fork_pub.publish(msg)
+        return start_seq, command_time
 
     def _move_fork(self, command, expected_state, phase):
         self._wait_ready()
         self._set_phase(phase, phase.replace('_', ' ').lower())
-        self._send_fork(command)
+        start_seq, command_time = self._send_fork(command)
+        direction = 'DOWN' if command == ForkCommand.DOWN else 'UP'
+        self.get_logger().info(f'FORK {direction} COMMAND SENT | start_seq={start_seq}')
+        state_timeout = float(self.get_parameter('fork_state_timeout_sec').value)
         deadline = time.monotonic() + float(
             self.get_parameter('fork_timeout_sec').value)
+        last_wait_log = float('-inf')
+        last_reject_log = float('-inf')
         while time.monotonic() < deadline:
-            if self._fork_state and self._fork_state.state == expected_state:
+            with self._lock:
+                state = self._fork_state
+                seq = self._fork_state_seq
+                last_seen = self._fork_state_last_seen
+                now = time.monotonic()
+            new_message = seq > start_seq and last_seen is not None and last_seen >= command_time
+            fresh = last_seen is not None and now - last_seen <= state_timeout
+            at_target = state is not None and state.state == expected_state
+            lower_confirmed = command != ForkCommand.DOWN or (
+                state is not None and state.lower_limit)
+            if new_message and fresh and at_target and lower_confirmed:
                 stop = ForkCommand()
                 stop.command = ForkCommand.STOP
                 self.fork_pub.publish(stop)
+                self.get_logger().info(
+                    f'FORK {direction} CONFIRMED | fresh state after command | seq={seq}')
                 self.get_logger().info(f'{phase} tamamlandi')
                 return
-            if self._fork_state and self._fork_state.state == ForkState.ERROR:
-                ec = self._fork_state.error_code
+            if new_message and fresh and at_target and not lower_confirmed:
+                if now - last_reject_log >= 1.0:
+                    self.get_logger().warning(
+                        'FORK DOWN REJECTED | AT_BOTTOM but lower_limit=false')
+                    last_reject_log = now
+            elif (not new_message or not fresh) and now - last_wait_log >= 1.0:
+                self.get_logger().info(f'FORK {direction} WAIT | stale/cached state ignored')
+                last_wait_log = now
+            if state and state.state == ForkState.ERROR:
+                ec = state.error_code
                 if ec in (ForkState.ERROR_TOP_TIMEOUT,
                            ForkState.ERROR_BOTTOM_TIMEOUT):
-                    self._send_fork(command)
+                    start_seq, command_time = self._send_fork(command)
                 else:
                     raise MissionFailure(f'fork error {ec}')
             time.sleep(0.05)
@@ -638,6 +684,8 @@ class MissionNode(Node):
         # yous: yuku indir
         self._move_fork(ForkCommand.DOWN, ForkState.AT_BOTTOM, 'LOWER_LOAD')
         self._mctx.carrying_load = False
+        # AT_BOTTOM has been confirmed: only now may the robot leave the load.
+        self._dock(station, 'dropoff_escape')
         # yous: yuk yok + eve ON ile don -> on kamera
         self._switch_camera(rear=True)
         return

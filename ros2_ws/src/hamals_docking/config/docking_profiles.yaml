@@ -53,3 +53,9 @@ hamals_docking:
     # Çizgi takibi başladıktan sonra encoder odometrisine göre
     # bu mesafe tamamlanınca docking başarılı sayılır.
     dropoff_line_distance_m: 1.20 #
+
+    dropoff_escape:
+      enabled: true
+      distance_m: 0.50
+      speed_mps: 0.08
+      timeout_sec: 8.0

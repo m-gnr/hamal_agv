@@ -60,6 +60,7 @@ target_include_directories(scan_processor_node
 )
 
 ament_target_dependencies(scan_processor_node
+  std_msgs
   rclcpp
   sensor_msgs
   hamals_interfaces
@@ -88,6 +89,7 @@ install(DIRECTORY config/ DESTINATION share/${PROJECT_NAME}/config)
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_include_directories(include)
 ament_export_dependencies(
+  std_msgs
   rclcpp
   sensor_msgs
   visualization_msgs

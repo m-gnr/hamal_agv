@@ -32,6 +32,11 @@ scan_processor_node:
     fork_mask:
       enabled: true
       state_timeout: 0.5
+      # Escape only: narrow fork-facing sector across +/-pi (not the rear at zero).
+      # Normal switch-based front-region masking remains unchanged.
+      min: 2.941592653589793
+      max: -2.941592653589793
+      dropoff_escape_timeout: 1.0
 
     debug:
       enable_rviz: true

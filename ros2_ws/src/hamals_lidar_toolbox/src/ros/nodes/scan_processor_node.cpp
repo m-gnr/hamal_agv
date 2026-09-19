@@ -24,6 +24,9 @@ ScanProcessorNode::ScanProcessorNode(const rclcpp::NodeOptions& options)
     this->declare_parameter<bool>("debug.enable_rviz", false);
     this->declare_parameter<bool>("fork_mask.enabled", true);
     this->declare_parameter<double>("fork_mask.state_timeout", 0.5);
+    this->declare_parameter<double>("fork_mask.dropoff_escape_timeout", 1.0);
+    this->declare_parameter<double>("fork_mask.min", M_PI - 0.20);
+    this->declare_parameter<double>("fork_mask.max", -M_PI + 0.20);
 
     double danger_distance =
         this->get_parameter("danger_distance").as_double();
@@ -49,9 +52,22 @@ ScanProcessorNode::ScanProcessorNode(const rclcpp::NodeOptions& options)
     {
         throw std::invalid_argument("fork_mask.state_timeout must be finite and nonnegative");
     }
+    const double escape_timeout =
+        this->get_parameter("fork_mask.dropoff_escape_timeout").as_double();
+    escape_mask_ = {"dropoff_escape",
+        this->get_parameter("fork_mask.min").as_double(),
+        this->get_parameter("fork_mask.max").as_double()};
+    if (!std::isfinite(escape_timeout) || escape_timeout <= 0.0 ||
+        !std::isfinite(escape_mask_.min_angle) ||
+        !std::isfinite(escape_mask_.max_angle) ||
+        std::abs(escape_mask_.min_angle) > M_PI ||
+        std::abs(escape_mask_.max_angle) > M_PI)
+    {
+        throw std::invalid_argument("invalid fork_mask escape timeout or angles");
+    }
     fork_mask_state_ = std::make_unique<
         hamals_lidar_toolbox::core::ForkMaskState>(
-            this->get_parameter("fork_mask.enabled").as_bool(), state_timeout);
+            this->get_parameter("fork_mask.enabled").as_bool(), state_timeout, escape_timeout);
 
     sanitizer_ = std::make_unique<
         hamals_lidar_toolbox::core::ScanSanitizer>(min_range, max_range);
@@ -87,6 +103,13 @@ ScanProcessorNode::ScanProcessorNode(const rclcpp::NodeOptions& options)
         this->create_subscription<hamals_interfaces::msg::ForkState>(
             "/mcu/fork_state", 10,
             std::bind(&ScanProcessorNode::forkStateCallback, this, _1));
+
+    escape_subscriber_ = this->create_subscription<std_msgs::msg::Bool>(
+        "/docking/dropoff_escape_active", 1,
+        [this](std_msgs::msg::Bool::ConstSharedPtr msg) {
+            fork_mask_state_->receiveEscape(msg->data,
+                hamals_lidar_toolbox::core::ForkMaskState::Clock::now());
+        });
 
     obstacle_state_pub_ =
         this->create_publisher<hamals_interfaces::msg::ObstacleState>(
@@ -131,7 +154,15 @@ void ScanProcessorNode::scanCallback(
         fork_mask_was_active_ = fork_mask_active;
     }
 
-    auto segments = segmenter_->segment(scan, fork_mask_active ? "front" : "");
+    const bool escape_active = fork_mask_state_->escapeActive(now);
+    if (escape_active != escape_mask_was_active_)
+    {
+        RCLCPP_INFO(this->get_logger(), "DROPOFF ESCAPE MASK %s",
+                    escape_active ? "ON" : "OFF");
+        escape_mask_was_active_ = escape_active;
+    }
+    auto segments = segmenter_->segment(
+        scan, fork_mask_active ? "front" : "", escape_active ? &escape_mask_ : nullptr);
 
     auto clean_scan = sanitizer_->sanitize(scan);
 

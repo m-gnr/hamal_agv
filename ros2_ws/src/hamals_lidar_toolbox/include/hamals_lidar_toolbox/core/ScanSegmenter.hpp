@@ -24,7 +24,8 @@ public:
     explicit ScanSegmenter(const std::vector<Region>& regions);
 
     std::unordered_map<std::string, std::vector<std::size_t>>
-    segment(const ScanData& scan, const std::string& excluded_region = "") const;
+    segment(const ScanData& scan, const std::string& excluded_region = "",
+            const Region* excluded_angles = nullptr) const;
 
 private:
     std::vector<Region> regions_;

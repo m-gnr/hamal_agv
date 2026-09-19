@@ -2,6 +2,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
+#include <std_msgs/msg/bool.hpp>
 
 #include "hamals_lidar_toolbox/ros/adapters/LaserScanAdapter.hpp"
 
@@ -45,6 +46,9 @@ private:
     std::unique_ptr<hamals_lidar_toolbox::core::ObstacleDetector> obstacle_detector_;
     std::unique_ptr<hamals_lidar_toolbox::core::ForkMaskState> fork_mask_state_;
     bool fork_mask_was_active_{false};
+    bool escape_mask_was_active_{false};
+    hamals_lidar_toolbox::core::ScanSegmenter::Region escape_mask_;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr escape_subscriber_;
 
     bool debug_rviz_enabled_{false};
 
