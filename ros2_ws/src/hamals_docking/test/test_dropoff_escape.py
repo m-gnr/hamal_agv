@@ -18,14 +18,23 @@ def docking():
     path = Path(__file__).resolve().parents[1] / 'hamals_docking/docking_node.py'
     tree = ast.parse(path.read_text())
     cls = next(n for n in tree.body if isinstance(n, ast.ClassDef))
-    cls.bases = []
+    class Node:
+        def __init__(self, name):
+            pass
+
+        def destroy_node(self):
+            self.destroyed = True
+
+    cls.bases = [ast.Name(id='Node', ctx=ast.Load())]
     clock = NS(now=10.0, tick=lambda: None, running=True)
 
     def sleep(dt):
         clock.now += dt
         clock.tick()
 
-    ns = dict(math=math, threading=threading, Twist=Twist, Bool=lambda **kw: NS(**kw),
+    ns = dict(Node=Node, ReentrantCallbackGroup=lambda: None,
+              ActionServer=lambda *a, **kw: None, Odometry=object, Int32=object,
+              math=math, threading=threading, Twist=Twist, Bool=lambda **kw: NS(**kw),
               time=NS(monotonic=lambda: clock.now, sleep=sleep),
               rclpy=NS(ok=lambda: clock.running), Dock=NS(Result=lambda **kw: NS(**kw)))
     exec(compile(ast.fix_missing_locations(ast.Module(body=[cls], type_ignores=[])),
@@ -41,6 +50,9 @@ def docking():
     node.dropoff_escape_speed_mps = 0.08
     node.dropoff_escape_timeout_sec = 8.0
     node.dropoff_escape_active = False
+    node.line_follow_active = False
+    node.line_flags = []
+    node.line_follow_active_pub = NS(publish=lambda msg: node.line_flags.append(msg.data))
     node.shutting_down = False
     node.action_running = True
     node.active = False

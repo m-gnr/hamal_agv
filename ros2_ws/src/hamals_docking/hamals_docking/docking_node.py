@@ -116,6 +116,13 @@ class DockingNode(Node):
             Twist, "/cmd_vel/docking", 10
         )
 
+        self.line_follow_active_pub = self.create_publisher(
+            Bool,
+            "/docking/line_follow_active",
+            1,
+        )
+        self.line_follow_active = False
+
         self.dropoff_escape_pub = self.create_publisher(
             Bool, "/docking/dropoff_escape_active", 1)
         self.dropoff_escape_active = False
@@ -230,6 +237,21 @@ class DockingNode(Node):
         if changed:
             self.get_logger().info(
                 "DROPOFF ESCAPE MASK " + ("ON" if active else "OFF"))
+
+    def set_line_follow_active(self, active: bool):
+        with self.lock:
+            active = bool(active) and not self.shutting_down
+            if active == self.line_follow_active:
+                return
+            self.line_follow_active = active
+            try:
+                self.line_follow_active_pub.publish(Bool(data=active))
+                self.get_logger().info(
+                    "LINE FOLLOW ACTIVE " + ("ON" if active else "OFF"))
+            except Exception:
+                # The context/publisher may already be closed during shutdown.
+                if not self.shutting_down and rclpy.ok():
+                    raise
 
     def drive_reverse_odom(self, goal_handle, distance_m, speed):
         """Straight reverse after mission confirms LOWER_LOAD; heartbeat is loop-owned."""
@@ -367,6 +389,7 @@ class DockingNode(Node):
         )
 
         try:
+            self.set_line_follow_active(True)
             while rclpy.ok():
                 if goal_handle.is_cancel_requested:
                     self.stop_robot()
@@ -478,6 +501,7 @@ class DockingNode(Node):
             return False, "ROS shutdown"
 
         finally:
+            self.set_line_follow_active(False)
             with self.lock:
                 self.active = False
             self.stop_robot()
@@ -589,6 +613,7 @@ class DockingNode(Node):
         self.get_logger().info(f"LINE FOLLOW START | op={operation}")
 
         try:
+            self.set_line_follow_active(True)
             while rclpy.ok():
                 if goal_handle.is_cancel_requested:
                     return False, "cancelled"
@@ -630,6 +655,7 @@ class DockingNode(Node):
                         self.get_logger().info(
                             "PICKUP LINE END | MZ80 yok -> 12cm ilerle"
                         )
+                        self.set_line_follow_active(False)
                         if self.drive_forward_odom(
                             goal_handle,
                             self.pickup_nudge_distance_m,
@@ -706,6 +732,7 @@ class DockingNode(Node):
             return False, "ROS shutdown"
 
         finally:
+            self.set_line_follow_active(False)
             with self.lock:
                 self.active = False
             self.stop_robot()
@@ -775,6 +802,7 @@ class DockingNode(Node):
 
     def destroy_node(self):
         self.shutting_down = True
+        self.set_line_follow_active(False)
         try:
             self.stop_robot()
         finally:
@@ -796,6 +824,7 @@ def main(args=None):
         pass
     finally:
         node.shutting_down = True
+        node.set_line_follow_active(False)
         try:
             node.stop_robot()
         finally:
