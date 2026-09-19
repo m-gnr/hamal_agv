@@ -11,6 +11,7 @@
 #include "hamals_lidar_toolbox/core/ScanMetrics.hpp"
 #include "hamals_lidar_toolbox/core/ObstacleDetector.hpp"
 #include "hamals_lidar_toolbox/core/ForkMaskState.hpp"
+#include "hamals_lidar_toolbox/core/LineFollowState.hpp"
 #include "hamals_interfaces/msg/obstacle_state.hpp"
 #include "hamals_interfaces/msg/fork_state.hpp"
 
@@ -30,6 +31,8 @@ private:
     createRegionsFromParams() const;
 
     void scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg);
+    void updateLineFollowProfile();
+    void lineFollowCallback(const std_msgs::msg::Bool::ConstSharedPtr msg);
     void forkStateCallback(const hamals_interfaces::msg::ForkState::ConstSharedPtr msg);
 
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr
@@ -49,6 +52,13 @@ private:
     bool escape_mask_was_active_{false};
     hamals_lidar_toolbox::core::ScanSegmenter::Region escape_mask_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr escape_subscriber_;
+
+    std::unique_ptr<hamals_lidar_toolbox::core::LineFollowState> line_follow_state_;
+    rclcpp::TimerBase::SharedPtr line_follow_timer_;
+    bool line_follow_active_{false};
+    double configured_front_danger_distance_;
+    double line_follow_front_danger_distance_;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr line_follow_subscriber_;
 
     bool debug_rviz_enabled_{false};
 

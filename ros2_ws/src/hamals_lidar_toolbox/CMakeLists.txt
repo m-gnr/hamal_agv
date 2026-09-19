@@ -107,6 +107,10 @@ if(BUILD_TESTING)
   target_link_libraries(test_region_danger_distance hamals_lidar_toolbox_core)
   add_test(NAME test_region_danger_distance COMMAND test_region_danger_distance)
 
+  add_executable(test_line_follow_state test/test_line_follow_state.cpp)
+  target_link_libraries(test_line_follow_state hamals_lidar_toolbox_core)
+  add_test(NAME test_line_follow_state COMMAND test_line_follow_state)
+
   find_package(ament_lint_auto REQUIRED)
   set(ament_cmake_copyright_FOUND TRUE)
   set(ament_cmake_cpplint_FOUND TRUE)

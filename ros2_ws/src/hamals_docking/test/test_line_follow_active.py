@@ -14,6 +14,8 @@ def initialized():
         topic, NS(publish=lambda msg: None, depth=depth))
     node.create_subscription = lambda *a, **kw: None
     node.declare_parameter = lambda name, default: NS(value=default)
+    node.create_timer = lambda period, callback, **kw: NS(
+        period=period, callback=callback, **kw)
     node.__init__()
     node.line_flags = []
     node.logs = []
@@ -138,3 +140,32 @@ def test_destroy_clears_state_even_with_closed_publisher(closed):
         assert n.line_flags == [True, False]
     n.set_line_follow_active(True)
     assert n.line_follow_active is False
+
+
+def test_heartbeat_active_only_and_no_log_spam():
+    n, _, _, _ = initialized()
+    timer = n.line_follow_heartbeat_timer
+    assert timer.period == pytest.approx(0.1)
+    assert timer.clock.clock_type == "steady"
+    timer.callback()
+    assert n.line_flags == []
+    n.set_line_follow_active(True)
+    for _ in range(5):
+        timer.callback()
+    assert n.line_flags == [True] * 6
+    assert n.logs == ['LINE FOLLOW ACTIVE ON']
+    n.set_line_follow_active(False)
+    timer.callback()
+    assert n.line_flags == [True] * 6 + [False]
+    assert n.logs == ['LINE FOLLOW ACTIVE ON', 'LINE FOLLOW ACTIVE OFF']
+
+
+def test_shutdown_suppresses_heartbeat_even_if_state_was_true():
+    n, _, _, _ = initialized()
+    n.set_line_follow_active(True)
+    n.shutting_down = True
+    n.line_follow_heartbeat_timer.callback()
+    assert n.line_flags == [True]
+    n.destroy_node()
+    n.line_follow_heartbeat_timer.callback()
+    assert n.line_flags == [True, False]

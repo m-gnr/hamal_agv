@@ -33,6 +33,7 @@ def docking():
         clock.tick()
 
     ns = dict(Node=Node, ReentrantCallbackGroup=lambda: None,
+              Clock=lambda **kw: NS(**kw), ClockType=NS(STEADY_TIME="steady"),
               ActionServer=lambda *a, **kw: None, Odometry=object, Int32=object,
               math=math, threading=threading, Twist=Twist, Bool=lambda **kw: NS(**kw),
               time=NS(monotonic=lambda: clock.now, sleep=sleep),

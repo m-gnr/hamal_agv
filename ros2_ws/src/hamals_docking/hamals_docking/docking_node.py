@@ -10,6 +10,7 @@ import time
 import rclpy
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.clock import Clock, ClockType
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 
@@ -128,6 +129,10 @@ class DockingNode(Node):
         self.dropoff_escape_active = False
         self.shutting_down = False
         self.set_dropoff_escape_active(False)
+        self.line_follow_heartbeat_timer = self.create_timer(
+            0.1, self.publish_line_follow_heartbeat,
+            clock=Clock(clock_type=ClockType.STEADY_TIME),
+        )
 
         self.create_subscription(
             Bool, "/line/detected",
@@ -250,6 +255,16 @@ class DockingNode(Node):
                     "LINE FOLLOW ACTIVE " + ("ON" if active else "OFF"))
             except Exception:
                 # The context/publisher may already be closed during shutdown.
+                if not self.shutting_down and rclpy.ok():
+                    raise
+
+    def publish_line_follow_heartbeat(self):
+        with self.lock:
+            if not self.line_follow_active or self.shutting_down:
+                return
+            try:
+                self.line_follow_active_pub.publish(Bool(data=True))
+            except Exception:
                 if not self.shutting_down and rclpy.ok():
                     raise
 

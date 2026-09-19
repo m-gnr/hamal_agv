@@ -4,6 +4,10 @@ scan_processor_node:
     
     danger_distance: 0.17
 
+    line_follow:
+      front_danger_distance: 0.04
+      state_timeout_sec: 0.5
+
     scan:
       min_range: 0.12
       max_range: 30.0

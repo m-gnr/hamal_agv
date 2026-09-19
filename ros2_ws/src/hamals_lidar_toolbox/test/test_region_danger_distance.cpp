@@ -37,5 +37,33 @@ int main()
     check(!isDangerous(without_overrides, "rear", 0.35));
     check(isDangerous(without_overrides, "rear", 0.16));
 
+    // The ROS state callback switches only the configured front threshold.
+    detector.setRegionDangerDistance("front", 0.85);
+    check(isDangerous(detector, "front", 0.50));
+    check(!isDangerous(detector, "front", 0.90));
+    check(isDangerous(detector, "front", 0.849));
+    check(!isDangerous(detector, "front", 0.85)); // Strict < boundary.
+    check(!isDangerous(detector, "front", 0.851));
+
+    for (double front_threshold : {0.04, 0.85, 0.04, 0.85})
+    {
+        detector.setRegionDangerDistance("front", front_threshold);
+        check(isDangerous(detector, "front", 0.50) == (front_threshold == 0.85));
+        check(!isDangerous(detector, "front", 0.90));
+        check(!isDangerous(detector, "front", 0.10));
+        // Preserve the existing sensor minimum filter, including below/at/above 4 cm.
+        check(!isDangerous(detector, "front", 0.039));
+        check(!isDangerous(detector, "front", 0.04));
+        check(!isDangerous(detector, "front", 0.041));
+        check(!isDangerous(detector, "front", 0.12));
+        check(isDangerous(detector, "rear", 0.35));
+        check(!isDangerous(detector, "rear", 0.40));
+        for (const auto* side : {"left", "right"})
+        {
+            check(isDangerous(detector, side, 0.16));
+            check(!isDangerous(detector, side, 0.17));
+        }
+    }
+
     return 0;
 }

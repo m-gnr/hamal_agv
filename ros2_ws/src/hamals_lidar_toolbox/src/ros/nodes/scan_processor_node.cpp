@@ -9,6 +9,16 @@ ScanProcessorNode::ScanProcessorNode(const rclcpp::NodeOptions& options)
 : rclcpp::Node("scan_processor_node", options)
 {
     this->declare_parameter<double>("danger_distance", 0.17);
+    line_follow_front_danger_distance_ = this->declare_parameter<double>(
+        "line_follow.front_danger_distance", 0.04);
+    if (!std::isfinite(line_follow_front_danger_distance_) ||
+        line_follow_front_danger_distance_ <= 0.0)
+    {
+        throw std::invalid_argument(
+            "line_follow.front_danger_distance must be finite and positive");
+    }
+    line_follow_state_ = std::make_unique<hamals_lidar_toolbox::core::LineFollowState>(
+        this->declare_parameter<double>("line_follow.state_timeout_sec", 0.5));
     this->declare_parameter<double>("scan.min_range");
     this->declare_parameter<double>("scan.max_range");
 
@@ -86,6 +96,9 @@ ScanProcessorNode::ScanProcessorNode(const rclcpp::NodeOptions& options)
             this->get_parameter(std::string("regions.") + region + ".danger_distance").as_double());
     }
 
+    configured_front_danger_distance_ =
+        this->get_parameter("regions.front.danger_distance").as_double();
+
     if (debug_rviz_enabled_)
     {
         rviz_debug_ = std::make_unique<
@@ -111,6 +124,13 @@ ScanProcessorNode::ScanProcessorNode(const rclcpp::NodeOptions& options)
                 hamals_lidar_toolbox::core::ForkMaskState::Clock::now());
         });
 
+    line_follow_subscriber_ = this->create_subscription<std_msgs::msg::Bool>(
+        "/docking/line_follow_active", 1,
+        std::bind(&ScanProcessorNode::lineFollowCallback, this, _1));
+    line_follow_timer_ = this->create_wall_timer(
+        std::chrono::milliseconds(50),
+        std::bind(&ScanProcessorNode::updateLineFollowProfile, this));
+
     obstacle_state_pub_ =
         this->create_publisher<hamals_interfaces::msg::ObstacleState>(
             "/scan/obstacle_state", 10);
@@ -129,9 +149,38 @@ void ScanProcessorNode::forkStateCallback(
         hamals_lidar_toolbox::core::ForkMaskState::Clock::now());
 }
 
+void ScanProcessorNode::lineFollowCallback(
+    const std_msgs::msg::Bool::ConstSharedPtr msg)
+{
+    line_follow_state_->receive(msg->data,
+        hamals_lidar_toolbox::core::LineFollowState::Clock::now());
+    updateLineFollowProfile();
+}
+
+void ScanProcessorNode::updateLineFollowProfile()
+{
+    // Scan, state and timer callbacks share the default mutually exclusive group.
+    const auto now = hamals_lidar_toolbox::core::LineFollowState::Clock::now();
+    const bool active = line_follow_state_->active(now);
+    if (line_follow_active_ == active)
+    {
+        return;
+    }
+    line_follow_active_ = active;
+    const double front_danger_distance = line_follow_active_
+        ? line_follow_front_danger_distance_ : configured_front_danger_distance_;
+    obstacle_detector_->setRegionDangerDistance("front", front_danger_distance);
+    const char* transition = active ? "LINE FOLLOW PROFILE ACTIVE"
+        : (line_follow_state_->stale(now) ? "LINE FOLLOW PROFILE STALE -> NORMAL"
+                                         : "LINE FOLLOW PROFILE INACTIVE");
+    RCLCPP_INFO(this->get_logger(), "%s | front danger=%.2f m",
+                transition, front_danger_distance);
+}
+
 void ScanProcessorNode::scanCallback(
     const sensor_msgs::msg::LaserScan::SharedPtr msg)
 {
+    updateLineFollowProfile();
     auto scan =
         hamals_lidar_toolbox::ros::adapters::LaserScanAdapter::fromRosMessage(*msg);
 
