@@ -12,6 +12,7 @@ class MissionContext:
     top_state: int
     phase: str = 'VALIDATE_TASK'
     carrying_load: bool = False
+    returning_home: bool = False
     active_target: str = ''
     expected_qr: str = ''
     verified_qr: str = ''

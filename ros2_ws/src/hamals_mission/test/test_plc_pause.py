@@ -11,11 +11,13 @@ class State:
     EXECUTING, WAITING_PLC, PAUSED_MANUAL = 2, 3, 5
     EMERGENCY_STOP, PAUSED_OBSTACLE, PAUSED_PLC = 7, 4, 8
     SENSOR_STALE = 9
+    ERROR, IDLE = 6, 1
 
 
 class Fork:
     STOP, UP, AT_TOP, ERROR = 0, 1, 2, 3
     ERROR_TOP_TIMEOUT, ERROR_BOTTOM_TIMEOUT = 4, 5
+    DOWN, AT_BOTTOM = 6, 7
 
     def __init__(self):
         self.command = None
@@ -56,7 +58,7 @@ def mission():
     n.fork_pub = NS(messages=[], publish=lambda msg: n.fork_pub.messages.append(msg))
     n.get_parameter = lambda key: NS(value={
         'reverse_when_loaded': True, 'max_nav_retries': 1, 'nav_timeout_sec': 5.,
-        'fork_timeout_sec': 2., 'dock_timeout_sec': 5.,
+        'fork_timeout_sec': 2., 'fork_state_timeout_sec': .5, 'dock_timeout_sec': 5.,
         'line_follow_speed': .1, 'line_follow_gain': .05,
         'line_follow_deadband_px': 18., 'line_follow_smoothing': .35,
         'line_follow_max_turn': .45, 'line_follow_invert': True,
@@ -130,7 +132,7 @@ def test_nav_cancels_and_resends_same_target():
     assert canceled == ['Nav2'] and n._mctx.retry_count == 0
 
 
-def test_dock_cancel_acknowledged_before_restart():
+def test_dock_pause_keeps_same_action_and_progress():
     n = mission()
     order = []
 
@@ -142,7 +144,10 @@ def test_dock_cancel_acknowledged_before_restart():
         def done(self):
             if self.first and not self.checked:
                 self.checked = True
-                n._plc_pause_generation += 1
+                response = NS(success=False, message='')
+                n._plc_pause(None, response)
+                assert response.success and n._plc_pause_required
+                n._plc_resume(None, NS(success=False, message=''))
                 return False
             return True
 
@@ -171,7 +176,8 @@ def test_dock_cancel_acknowledged_before_restart():
     n._wait_ready = lambda: 0
     n._set_phase = lambda *_: None
     n._dock(NS(id='A1', expected_qr='A1', docking_profile='standard'), 'pickup')
-    assert order == ['send', 'cancel', 'send']
+    # A relative docking maneuver must not restart its distance/rotation.
+    assert order == ['send']
     assert n._mctx.verified_qr == 'A1'
 
 
@@ -181,8 +187,15 @@ def test_fork_stop_then_resume_command():
     sent = []
     n._set_phase = lambda *_: None
     n._wait_ready = lambda: 0
-    n._send_fork = lambda cmd: (sent.append(cmd), setattr(n._fork_state, 'state', Fork.AT_TOP)
-                                 if len(sent) == 2 else None)
+    n._fork_state_seq = 0
+    n._fork_state_last_seen = None
+    def send(cmd):
+        sent.append(cmd)
+        boundary, at = n._fork_state_seq, time.monotonic()
+        if len(sent) == 2:
+            n._fork_received(NS(state=Fork.AT_TOP, error_code=0))
+        return boundary, at
+    n._send_fork = send
     checks = iter((False, True))
     n._wait_ready_state = lambda: next(checks, True)
     n._move_fork(Fork.UP, Fork.AT_TOP, 'LIFT_LOAD')
@@ -223,3 +236,83 @@ def test_odom_drive_and_rotation_observe_plc_hold():
     assert n._rotate_rel(.1, 'QR')
     assert n.cmd_pub.messages[0].angular.z == 0
     assert any(m.angular.z > 0 for m in n.cmd_pub.messages)
+
+
+def test_plc_pause_services_are_trigger_and_manual_services_unchanged():
+    path = Path(__file__).resolve().parents[1] / 'hamals_mission/mission_node.py'
+    tree = ast.parse(path.read_text())
+    services = {}
+    for call in ast.walk(tree):
+        if (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+                and call.func.attr == 'create_service'):
+            services[call.args[1].value] = call.args[0].id
+    assert services == {'/mission/pause': 'PauseMission', '/mission/resume': 'ResumeMission',
+                        '/mission/plc_pause': 'Trigger', '/mission/plc_resume': 'Trigger'}
+
+
+def test_plc_pause_is_idempotent_and_manual_resume_cannot_release_it():
+    n = mission()
+    n._plc_pause(None, NS(success=False, message=''))
+    n._plc_pause(None, NS(success=False, message=''))
+    assert n._plc_pause_generation == 1
+    assert n._plc_pause_required and n._mctx.top_state == State.PAUSED_PLC
+    n._manual_resume_required = True
+    response = n._resume(NS(operator_id='test'), NS(success=False, message=''))
+    assert response.success and n._plc_pause_required
+    assert n._mctx.top_state == State.PAUSED_PLC
+    n._plc_resume(None, NS(success=False, message=''))
+    assert n._mctx.top_state == State.EXECUTING and not n._plc_pause_required
+
+
+def test_nav_cancel_waits_for_result_before_allowing_restart():
+    n = mission()
+    order = []
+    result = NS(done=lambda: False)
+    handle = NS(cancel_goal_async=lambda: 'cancel-future')
+    def wait(future, timeout, label):
+        order.append(label)
+        if future == 'cancel-future':
+            return NS(goals_canceling=[handle])
+        assert future is result
+        return NS(status=5)
+    n._wait_future = wait
+    n._cancel_for_plc(handle, result, 'Nav2')
+    assert order == ['Nav2 cancel', 'Nav2 canceled result']
+
+
+def test_return_flag_is_owned_by_mission_lifecycle_and_serialized():
+    import runpy
+    Context = runpy.run_path(str(Path(__file__).resolve().parents[1]
+                                / 'hamals_mission/mission_context.py'))['MissionContext']
+    n = mission()
+    ns = n._run_task.__globals__
+    ns['MissionContext'] = Context
+    n._mctx = None
+    n._world_checksum = 'test'
+    n.get_parameter = lambda name: NS(value={
+        'home_node': 'START', 'door_direct_node': 'D4', 'start_qr': '',
+        'door_qr_outbound': 'KAPI1', 'door_qr_return': 'KAPI2',
+        'door_return_retry_node': 'D4'}[name])
+    n._station = lambda name: NS(type='pickup' if name.startswith('A') else 'dropoff',
+                                expected_qr=name, approach_node=name)
+    n._door_model = lambda: NS(west_node='W', east_node='E')
+    n._switch_camera = lambda **kw: None
+    n._acquire_qr = lambda *a: None
+    n._move_fork = lambda *a: None
+    n._dock = lambda *a: None
+    phases, routes = [], []
+    n._set_phase = lambda phase, *a: phases.append((phase, n._mctx.returning_home))
+    n._confirm_door_qr = lambda *a, **kw: None
+    n._door = lambda *a: None
+    n._route = lambda start, end, loaded: (start, end, loaded)
+    n._navigate_route = lambda route: routes.append((route, n._mctx.returning_home))
+    n._dropoff_custom = lambda *a: setattr(n._mctx, 'carrying_load', False)
+    assert n._run_task(NS(task_id='t1', pickup_id='A1', dropoff_id='B2'))[0]
+    assert phases == [('VALIDATE_TASK', False), ('REPORT_DELIVERED', True),
+                      ('REPORT_COMPLETE', True)]
+    assert [is_return for _, is_return in routes] == [False, False, True, True]
+    assert n._mctx is None and not n._plc_pause_required
+    n._mctx = Context('t2', 'A1', 'B2', State.EXECUTING)
+    assert not n._mctx.returning_home
+    n._mctx.returning_home = True
+    assert n._state_message().returning_home is True

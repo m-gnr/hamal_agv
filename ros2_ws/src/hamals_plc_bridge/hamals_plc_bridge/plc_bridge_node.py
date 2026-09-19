@@ -51,15 +51,18 @@ class PlcBridgeNode(Node):
         self._lock = threading.RLock()
         self._status_byte = 1
         self._mission_state = MissionState.IDLE
+        self._mission_seen = False
         self._cur_pickup = 0
         self._cur_dropoff = 0
         self._x = 0.0
         self._y = 0.0
         self._last_plc_task = None
         self._pending_task = None
+        self._require_task_wait = False
         self._task_seen_running = False
         self._pause_requested = False
         self._resume_requested = False
+        self._hold_in_flight = False
         self._at_door = False
         self._door_task_id = ''
         self._door_outbound = True
@@ -107,6 +110,9 @@ class PlcBridgeNode(Node):
                     self._last_tx_at = time.monotonic()
             except OSError as exc:
                 self.get_logger().warning(f'PLC TX error: {exc}')
+            except (ValueError, OverflowError) as exc:
+                # Invalid odometry must not permanently terminate the TX thread.
+                self.get_logger().warning(f'PLC TX skipped: invalid coordinate: {exc}')
             dt = period - (time.monotonic() - t0)
             if dt > 0:
                 time.sleep(dt)
@@ -178,9 +184,15 @@ class PlcBridgeNode(Node):
                 if control == 1:
                     self._pending_task = (pickup, dropoff)
                     return
+                if self._require_task_wait and self._pending_task != (pickup, dropoff):
+                    return
+                # Do not consume START before the mission subscriber is discovered.
+                if not self._mission_seen or self.task_pub.get_subscription_count() == 0:
+                    return
                 key = self._pending_task if self._pending_task == (pickup, dropoff) else (
                     pickup, dropoff)
                 self._pending_task = None
+                self._require_task_wait = True
                 self._last_plc_task = key
                 task = MissionTask()
                 task.stamp = self.get_clock().now().to_msg()
@@ -204,6 +216,12 @@ class PlcBridgeNode(Node):
                     self._request_plc_hold(self.plc_resume_client, 'resume')
 
     def _request_plc_hold(self, client, operation):
+        if self._hold_in_flight:
+            if operation == 'pause':
+                self._pause_requested = False
+            else:
+                self._resume_requested = False
+            return
         if not client.service_is_ready():
             self.get_logger().warning(f'PLC {operation} service unavailable')
             if operation == 'pause':
@@ -211,17 +229,33 @@ class PlcBridgeNode(Node):
             else:
                 self._resume_requested = False
             return
-        future = client.call_async(Trigger.Request())
+        self._hold_in_flight = True
+        try:
+            future = client.call_async(Trigger.Request())
+        except Exception as exc:
+            self._hold_in_flight = False
+            if operation == 'pause':
+                self._pause_requested = False
+            else:
+                self._resume_requested = False
+            self.get_logger().warning(f'PLC {operation} failed: {exc}')
+            return
 
         def completed(result_future):
             try:
                 result = result_future.result()
                 if result is not None and result.success:
+                    with self._lock:
+                        self._hold_in_flight = False
+                        if operation == 'resume':
+                            self._pause_requested = False
+                            self._resume_requested = False
                     return
                 self.get_logger().warning(f'PLC {operation} rejected')
             except Exception as exc:
                 self.get_logger().warning(f'PLC {operation} failed: {exc}')
             with self._lock:
+                self._hold_in_flight = False
                 if operation == 'pause':
                     self._pause_requested = False
                 else:
@@ -256,17 +290,22 @@ class PlcBridgeNode(Node):
             status = 7
         elif st == MissionState.EMERGENCY_STOP:
             status = 8
-        elif 'COMPLETE' in phase or 'REPORT' in phase:
+        elif msg.returning_home:
             status = 6
+        elif phase in ('VALIDATE_TASK', 'LOWER_FORK', 'LIFT_LOAD',
+                       'LOWER_LOAD', 'DROP_OFF_CUSTOM'):
+            status = 2
         elif st == MissionState.EXECUTING:
             status = 4 if loaded else 3
         else:
             status = 2
         with self._lock:
+            self._mission_seen = True
             if st != MissionState.IDLE:
                 self._task_seen_running = True
             elif self._task_seen_running:
                 self._last_plc_task = None
+                self._pending_task = None
                 self.active_task_id = ''
                 self._task_seen_running = False
                 self._pause_requested = False

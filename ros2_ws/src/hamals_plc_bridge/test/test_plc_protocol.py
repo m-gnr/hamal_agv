@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 class Message:
     def __init__(self, **kwargs):
+        self.returning_home = False
         self.__dict__.update(kwargs)
 
 
@@ -35,13 +36,20 @@ class Publisher:
     def publish(self, msg):
         self.messages.append(msg)
 
+    def get_subscription_count(self):
+        return 1
+
 
 def load_node():
     path = Path(__file__).resolve().parents[1] / 'hamals_plc_bridge/plc_bridge_node.py'
     tree = ast.parse(path.read_text())
     cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'PlcBridgeNode')
     cls.bases = []
-    module = ast.Module(body=[cls], type_ignores=[])
+    mappings = [n for n in tree.body if isinstance(n, ast.Assign)
+                and any(isinstance(t, ast.Name) and t.id in (
+                    'PICKUP_TO_BYTE', 'DROPOFF_TO_BYTE', 'BYTE_TO_PICKUP',
+                    'BYTE_TO_DROPOFF') for t in n.targets)]
+    module = ast.Module(body=mappings + [cls], type_ignores=[])
     ns = dict(threading=threading, time=time, itertools=itertools, struct=struct,
               MissionState=MissionState, MissionTask=Message, DoorEvent=DoorEvent,
               PlcState=PlcState, Trigger=SimpleNamespace(Request=Message),
@@ -58,7 +66,9 @@ def bridge():
     node._lock = threading.RLock()
     node.counter = itertools.count(1)
     node._mission_state = MissionState.IDLE
+    node._mission_seen = True
     node._pending_task = node._last_plc_task = None
+    node._require_task_wait = node._hold_in_flight = False
     node._task_seen_running = node._pause_requested = node._resume_requested = False
     node._at_door = node._door_permission_active = False
     node._door_task_id = 'task-1'
@@ -104,6 +114,9 @@ def test_pending_start_duplicate_and_repeat():
     assert len(n.task_pub.messages) == 1
     n._mission_state_cb(Message(state=MissionState.IDLE, carrying_load=False,
                                 phase='IDLE', pickup_id='', dropoff_id=''))
+    rx(n, 2)
+    assert len(n.task_pub.messages) == 1
+    rx(n, 1)  # A new WAIT/START handshake permits the same route again.
     rx(n, 2)
     assert len(n.task_pub.messages) == 2
     assert n.task_pub.messages[-1].task_id != first

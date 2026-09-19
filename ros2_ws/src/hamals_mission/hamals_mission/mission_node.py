@@ -16,6 +16,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from std_msgs.msg import Bool, Int32, String
+from std_srvs.srv import Trigger
 
 from hamals_interfaces.action import Dock, ExecuteMission
 from hamals_interfaces.msg import (
@@ -79,6 +80,8 @@ class MissionNode(Node):
         self._worker = None
         self._cancel = False
         self._manual_resume_required = False
+        self._plc_pause_required = False
+        self._plc_pause_generation = 0
         self._safety = None
         self._world_checksum = ''
         self._fork_state = None
@@ -134,6 +137,8 @@ class MissionNode(Node):
         self.dock_client = ActionClient(self, Dock, '/dock', callback_group=group)
         self.create_service(PauseMission, '/mission/pause', self._pause, callback_group=group)
         self.create_service(ResumeMission, '/mission/resume', self._resume, callback_group=group)
+        self.create_service(Trigger, '/mission/plc_pause', self._plc_pause, callback_group=group)
+        self.create_service(Trigger, '/mission/plc_resume', self._plc_resume, callback_group=group)
         self.action_server = ActionServer(
             self, ExecuteMission, '/mission/execute',
             execute_callback=self._execute_action,
@@ -184,6 +189,10 @@ class MissionNode(Node):
         last_t = time.monotonic()
         deadline = time.monotonic() + timeout_sec
         while time.monotonic() < deadline:
+            held = self._motion_checkpoint()
+            deadline += held
+            if held:
+                last_t = time.monotonic()
             if self._cancel:
                 self._stop_cmd()
                 raise MissionFailure('mission canceled')
@@ -195,7 +204,7 @@ class MissionNode(Node):
             total += max(0.0, self._odom_linear_x) * dt
             if direction < 0.0:
                 total *= -1.0
-            cmd = Twist(); cmd.linear.x = speed; self.cmd_pub.publish(cmd)
+            cmd = Twist(); cmd.linear.x = speed; self._publish_motion(cmd)
             if abs(total) >= abs(distance_m):
                 break
             time.sleep(0.05)
@@ -212,6 +221,8 @@ class MissionNode(Node):
         lost = float(self.get_parameter('line_follow_lost_sec').value)
         filtered = 0.0
         while time.monotonic() < deadline:
+            held = self._motion_checkpoint()
+            deadline += held
             if self._cancel:
                 self._stop_cmd()
                 raise MissionFailure('mission canceled')
@@ -240,7 +251,7 @@ class MissionNode(Node):
             cmd = Twist()
             cmd.linear.x = speed
             cmd.angular.z = filtered
-            self.cmd_pub.publish(cmd)
+            self._publish_motion(cmd)
             time.sleep(0.05)
         self._stop_cmd()
         return False
@@ -261,6 +272,8 @@ class MissionNode(Node):
         direction = 1.0 if angle_rad > 0 else -1.0
         deadline = time.monotonic() + abs(angle_rad) / speed
         while rclpy.ok() and time.monotonic() < deadline:
+            held = self._motion_checkpoint()
+            deadline += held
             if self._cancel:
                 self._stop_cmd()
                 raise MissionFailure('mission canceled')
@@ -269,7 +282,7 @@ class MissionNode(Node):
                 return True
             cmd = Twist()
             cmd.angular.z = direction * speed
-            self.cmd_pub.publish(cmd)
+            self._publish_motion(cmd)
             time.sleep(0.03)
         self._stop_cmd()
         return False
@@ -405,20 +418,117 @@ class MissionNode(Node):
             response.message = 'safety conditions do not allow resume'
             return response
         self._manual_resume_required = False
-        self._mctx.pause_reason = ''
-        self._mctx.top_state = MissionState.EXECUTING
+        self._wait_ready_state()
         response.success = True
         response.message = f'resumed by {request.operator_id or "operator"}'
         return response
+
+    def _plc_pause(self, _request, response):
+        with self._lock:
+            if self._mctx is None:
+                response.message = 'no active mission'
+                return response
+            if self._mctx.top_state in (MissionState.ERROR, MissionState.EMERGENCY_STOP):
+                response.message = 'mission is in error or emergency stop'
+                return response
+            if self._mctx.top_state == MissionState.WAITING_PLC:
+                response.message = 'door permission is separate from PLC pause'
+                return response
+            if not self._plc_pause_required:
+                self._plc_pause_required = True
+                self._plc_pause_generation += 1
+            self._wait_ready_state()
+        self._stop_cmd()
+        self._stop_fork()
+        self._publish_state()
+        response.success = True
+        response.message = 'PLC pause requested'
+        return response
+
+    def _plc_resume(self, _request, response):
+        with self._lock:
+            if self._mctx is None:
+                response.message = 'no active mission'
+                return response
+            if self._mctx.top_state in (MissionState.ERROR, MissionState.EMERGENCY_STOP):
+                response.message = 'mission is in error or emergency stop'
+                return response
+            if self._safety and self._safety.estop_active:
+                response.message = 'emergency stop active'
+                return response
+            if not self._plc_pause_required:
+                response.success = True
+                response.message = 'no PLC hold to release'
+                return response
+            self._plc_pause_required = False
+            self._wait_ready_state()
+            self._publish_state()
+            response.success = True
+            response.message = 'PLC hold released; safety and manual holds remain active'
+        return response
+
+    def _wait_ready_state(self, arm_dropoff_escape=False):
+        """Reflect the highest-priority hold without clearing any other hold."""
+        if self._mctx is None:
+            return False
+        safety = self._safety
+        if safety and safety.estop_active:
+            self._mctx.top_state = MissionState.EMERGENCY_STOP
+            self._mctx.pause_reason = safety.reason
+        elif (safety and safety.manual_mode) or self._manual_resume_required:
+            self._mctx.top_state = MissionState.PAUSED_MANUAL
+            self._mctx.pause_reason = safety.reason if safety and safety.manual_mode else 'operator pause'
+        elif (safety and not safety.motion_allowed
+              and not (arm_dropoff_escape and safety.state == SafetyState.OBSTACLE)):
+            self._mctx.top_state = MissionState.PAUSED_OBSTACLE
+            self._mctx.pause_reason = safety.reason
+        elif self._plc_pause_required:
+            self._mctx.top_state = MissionState.PAUSED_PLC
+            self._mctx.pause_reason = 'PLC WAIT'
+        else:
+            self._mctx.top_state = MissionState.EXECUTING
+            self._mctx.pause_reason = ''
+            return True
+        return False
+
+    def _motion_checkpoint(self, stop_fork=False, arm_dropoff_escape=False):
+        """Stop direct motion on any hold; return time spent waiting."""
+        if self._cancel:
+            self._stop_cmd()
+            raise MissionFailure('mission canceled')
+        if self._wait_ready_state(arm_dropoff_escape=arm_dropoff_escape):
+            return 0.0
+        self._stop_cmd()
+        if stop_fork:
+            self._stop_fork()
+        return (self._wait_ready(arm_dropoff_escape=True) if arm_dropoff_escape
+                else self._wait_ready())
+
+    def _publish_motion(self, cmd):
+        with self._lock:
+            self.cmd_pub.publish(Twist() if self._plc_pause_required else cmd)
+
+    def _stop_fork(self):
+        stop = ForkCommand()
+        stop.command = ForkCommand.STOP
+        self.fork_pub.publish(stop)
+
+    def _cancel_for_plc(self, handle, result_future, label):
+        """Do not restart an action until its server has acknowledged cancellation."""
+        canceled = self._wait_future(handle.cancel_goal_async(), 5.0, f'{label} cancel')
+        if not canceled.goals_canceling and not result_future.done():
+            raise MissionFailure(f'{label} cancellation not acknowledged')
+        self._wait_future(result_future, 10.0, f'{label} canceled result')
 
     def _set_phase(self, phase, message='', target=''):
         self._mctx.phase = phase
         self._mctx.message = message
         self._mctx.active_target = target
-        self._mctx.top_state = MissionState.EXECUTING
+        self._wait_ready_state(arm_dropoff_escape=phase == 'DOCK_DROPOFF_ESCAPE')
         self._publish_state()
 
     def _wait_ready(self, arm_dropoff_escape=False):
+        started = time.monotonic()
         while rclpy.ok():
             if self._cancel:
                 raise MissionFailure('mission canceled')
@@ -429,17 +539,10 @@ class MissionNode(Node):
             if safety and safety.state == SafetyState.SENSOR_STALE:
                 raise MissionFailure(safety.reason or 'critical safety sensor stale')
             if safety and safety.manual_mode:
-                self._mctx.top_state = MissionState.PAUSED_MANUAL
-                self._mctx.pause_reason = safety.reason
                 self._manual_resume_required = True
-            elif (safety and not safety.motion_allowed
-                  and not (arm_dropoff_escape and safety.state == SafetyState.OBSTACLE)):
-                self._mctx.top_state = MissionState.PAUSED_OBSTACLE
-                self._mctx.pause_reason = safety.reason
-            elif not self._manual_resume_required:
-                self._mctx.top_state = MissionState.EXECUTING
-                self._mctx.pause_reason = ''
-                return
+            if self._wait_ready_state(arm_dropoff_escape=arm_dropoff_escape):
+                return time.monotonic() - started
+            self._stop_cmd()
             time.sleep(0.05)
 
     def _wait_future(self, future, timeout, label):
@@ -521,7 +624,11 @@ class MissionNode(Node):
             theta = pose.theta + math.pi
         goal.pose.pose.orientation.z = math.sin(theta / 2.0)
         goal.pose.pose.orientation.w = math.cos(theta / 2.0)
-        for _ in range(int(self.get_parameter('max_nav_retries').value) + 1):
+        retries = 0
+        while retries <= int(self.get_parameter('max_nav_retries').value):
+            self._wait_ready()
+            generation = self._plc_pause_generation
+            goal.pose.header.stamp = self.get_clock().now().to_msg()
             sent = self._wait_future(
                 self.nav_client.send_goal_async(goal), 10.0, 'send Nav2 goal')
             if sent.accepted:
@@ -529,6 +636,10 @@ class MissionNode(Node):
                 deadline = time.monotonic() + float(
                     self.get_parameter('nav_timeout_sec').value)
                 while rclpy.ok() and not result_future.done():
+                    if self._plc_pause_generation != generation:
+                        self._cancel_for_plc(sent, result_future, 'Nav2')
+                        self._wait_ready()
+                        break
                     if self._cancel:
                         sent.cancel_goal_async()
                         raise MissionFailure('mission canceled')
@@ -542,9 +653,16 @@ class MissionNode(Node):
                         time.sleep(0.2)
                         return True
                     time.sleep(0.05)
-                result = result_future.result()
-                if result and result.status == 4:
-                    return False
+                else:
+                    result = result_future.result()
+                    if result and result.status == 4:
+                        return False
+                    retries += 1
+                    self._mctx.retry_count += 1
+                    continue
+                # PLC cancellation: same semantic target, no retry consumed.
+                continue
+            retries += 1
             self._mctx.retry_count += 1
         raise MissionFailure(f'Nav2 failed for {node_id}')
 
@@ -571,9 +689,10 @@ class MissionNode(Node):
         if not sent.accepted:
             raise MissionFailure('dock goal rejected')
         try:
-            result = self._wait_future(
+            result = self._wait_dock_result(
                 sent.get_result_async(),
-                float(self.get_parameter('dock_timeout_sec').value), 'dock')
+                float(self.get_parameter('dock_timeout_sec').value),
+                arm_dropoff_escape=operation == 'dropoff_escape')
         except Exception:
             sent.cancel_goal_async()
             raise
@@ -581,15 +700,34 @@ class MissionNode(Node):
             raise MissionFailure(result.result.message)
         self._mctx.verified_qr = station.expected_qr
 
+    def _wait_dock_result(self, future, timeout, arm_dropoff_escape=False):
+        deadline = time.monotonic() + timeout
+        while rclpy.ok():
+            if self._cancel:
+                raise MissionFailure('mission canceled')
+            deadline += self._motion_checkpoint(arm_dropoff_escape=arm_dropoff_escape)
+            if future.done():
+                result = future.result()
+                if result is None:
+                    raise MissionFailure('dock failed')
+                return result
+            if time.monotonic() >= deadline:
+                raise MissionFailure('dock timeout')
+            time.sleep(0.02)
+        raise MissionFailure('ROS shutdown during dock')
+
     def _send_fork(self, command):
         stop = ForkCommand()
         stop.command = ForkCommand.STOP
         self.fork_pub.publish(stop)
         time.sleep(0.5)
+        self._wait_ready()
         msg = ForkCommand()
         msg.command = command
         # Snapshot after the STOP delay, atomically with the actual command.
         with self._lock:
+            if self._plc_pause_required:
+                return self._fork_state_seq, time.monotonic()
             start_seq = self._fork_state_seq
             command_time = time.monotonic()
             self.fork_pub.publish(msg)
@@ -598,6 +736,7 @@ class MissionNode(Node):
     def _move_fork(self, command, expected_state, phase):
         self._wait_ready()
         self._set_phase(phase, phase.replace('_', ' ').lower())
+        generation = self._plc_pause_generation
         start_seq, command_time = self._send_fork(command)
         direction = 'DOWN' if command == ForkCommand.DOWN else 'UP'
         self.get_logger().info(f'FORK {direction} COMMAND SENT | start_seq={start_seq}')
@@ -607,6 +746,11 @@ class MissionNode(Node):
         last_wait_log = float('-inf')
         last_reject_log = float('-inf')
         while time.monotonic() < deadline:
+            if not self._wait_ready_state() or self._plc_pause_generation != generation:
+                self._stop_fork()
+                deadline += self._wait_ready()
+                generation = self._plc_pause_generation
+                start_seq, command_time = self._send_fork(command)
             with self._lock:
                 state = self._fork_state
                 seq = self._fork_state_seq
@@ -728,6 +872,7 @@ class MissionNode(Node):
             if self._mctx is not None:
                 return False, 'mission busy'
             self._cancel = False
+            self._plc_pause_required = False
             self._mctx = MissionContext(
                 task_id=task.task_id,
                 pickup_id=task.pickup_id,
@@ -773,6 +918,7 @@ class MissionNode(Node):
             self._acquire_qr(dropoff.expected_qr, direct_node, dropoff.approach_node, True)
 
             self._dropoff_custom(dropoff, dropoff.approach_node, True)
+            self._mctx.returning_home = True
             self._set_phase('REPORT_DELIVERED', 'load delivered')
 
             # yous: DONUS - KAPI2 ZORUNLU, sonra kapi izni beklenir.
@@ -786,7 +932,8 @@ class MissionNode(Node):
             self._set_phase('REPORT_COMPLETE', 'mission completed', home)
             return True, 'mission completed'
         except Exception as error:
-            self._mctx.top_state = MissionState.ERROR
+            if self._mctx.top_state != MissionState.EMERGENCY_STOP:
+                self._mctx.top_state = MissionState.ERROR
             self._mctx.error_code = type(error).__name__
             self._mctx.message = str(error)
             import traceback
@@ -803,6 +950,7 @@ class MissionNode(Node):
             with self._lock:
                 self._mctx = None
                 self._worker = None
+                self._plc_pause_required = False
 
     def _state_message(self):
         msg = MissionState()
@@ -821,6 +969,7 @@ class MissionNode(Node):
                 'pause_reason', 'error_code', 'message', 'config_checksum')
             for field in fields:
                 setattr(msg, field, getattr(context, field))
+            msg.returning_home = context.returning_home
             msg.carrying_load = context.carrying_load
             msg.retry_count = context.retry_count
             msg.elapsed_s = time.monotonic() - context.started_at

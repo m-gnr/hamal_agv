@@ -35,6 +35,8 @@ def docking():
     ns = dict(Node=Node, ReentrantCallbackGroup=lambda: None,
               Clock=lambda **kw: NS(**kw), ClockType=NS(STEADY_TIME="steady"),
               ActionServer=lambda *a, **kw: None, Odometry=object, Int32=object,
+              MissionState=NS(PAUSED_PLC=8, PAUSED_MANUAL=5, PAUSED_OBSTACLE=4,
+                              EMERGENCY_STOP=7, ERROR=6),
               math=math, threading=threading, Twist=Twist, Bool=lambda **kw: NS(**kw),
               time=NS(monotonic=lambda: clock.now, sleep=sleep),
               rclpy=NS(ok=lambda: clock.running), Dock=NS(Result=lambda **kw: NS(**kw)))
@@ -42,6 +44,7 @@ def docking():
                  str(path), 'exec'), ns)
     node = object.__new__(ns['DockingNode'])
     node.lock = threading.RLock()
+    node._mission_hold = False
     node.odom_x = 3.0
     node.odom_y = 4.0
     node.odom_last_seen = clock.now

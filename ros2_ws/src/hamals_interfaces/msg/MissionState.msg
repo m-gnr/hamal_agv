@@ -15,6 +15,8 @@ string task_id
 string pickup_id
 string dropoff_id
 bool carrying_load
+# Set after delivery until the mission returns to IDLE.
+bool returning_home
 string active_target
 string expected_qr
 string verified_qr

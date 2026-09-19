@@ -88,6 +88,7 @@ def test_escape_action_is_canceled_when_mission_wait_fails():
         raise RuntimeError('mission canceled')
 
     n._wait_future = wait
+    n._wait_dock_result = lambda future, *a, **kw: wait(future)
     with pytest.raises(RuntimeError, match='mission canceled'):
         n._dock(NS(id='D4', expected_qr='D4', docking_profile='standard'), 'dropoff_escape')
     assert canceled == [True]

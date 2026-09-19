@@ -19,6 +19,7 @@ from nav_msgs.msg import Odometry  # yous: pickup 12cm nudge icin
 from std_msgs.msg import Bool, Int32
 
 from hamals_interfaces.action import Dock
+from hamals_interfaces.msg import MissionState
 
 
 class DockingNode(Node):
@@ -90,6 +91,7 @@ class DockingNode(Node):
         # STATE
         # =========================
         self.lock = threading.RLock()
+        self._mission_hold = False
         self.action_running = False
         self.active = False
 
@@ -155,6 +157,10 @@ class DockingNode(Node):
             callback_group=self.cb_group,
         )
 
+        self.create_subscription(
+            MissionState, '/mission/state', self._mission_state_received, 10,
+            callback_group=self.cb_group)
+
         self.action_server = ActionServer(
             self,
             Dock,
@@ -173,6 +179,31 @@ class DockingNode(Node):
     # ==================================================
     # ACTION CALLBACKS
     # ==================================================
+
+    def _mission_state_received(self, msg):
+        with self.lock:
+            self._mission_hold = msg.state in (
+                MissionState.PAUSED_PLC, MissionState.PAUSED_MANUAL,
+                MissionState.PAUSED_OBSTACLE, MissionState.EMERGENCY_STOP,
+                MissionState.ERROR)
+            if self._mission_hold and self.action_running:
+                self.cmd_pub.publish(Twist())
+
+    def _wait_mission_hold(self, goal_handle):
+        """Keep the action's distance/angle progress; only suspend its clock."""
+        started = time.monotonic()
+        held = False
+        while self._mission_hold:
+            held = True
+            self.cmd_pub.publish(Twist())
+            if goal_handle.is_cancel_requested or not rclpy.ok() or self.shutting_down:
+                return None
+            time.sleep(0.02)
+        return time.monotonic() - started if held else 0.0
+
+    def _publish_motion(self, cmd):
+        with self.lock:
+            self.cmd_pub.publish(Twist() if self._mission_hold else cmd)
 
     def goal_callback(self, goal_request):
         with self.lock:
@@ -290,6 +321,10 @@ class DockingNode(Node):
             self.get_logger().info(
                 f"DROPOFF ESCAPE START | target={distance_m:.2f} m | speed={abs(speed):.2f} m/s")
             while rclpy.ok() and not self.shutting_down:
+                held = self._wait_mission_hold(goal_handle)
+                if held is None:
+                    return False, "cancelled during mission hold"
+                deadline += held
                 if goal_handle.is_cancel_requested:
                     return False, "escape cancelled"
                 now = time.monotonic()
@@ -313,7 +348,7 @@ class DockingNode(Node):
                 cmd = Twist()
                 cmd.linear.x = -abs(speed)
                 cmd.angular.z = 0.0
-                self.cmd_pub.publish(cmd)
+                self._publish_motion(cmd)
                 if now - last_log >= 0.5:
                     self.get_logger().info(
                         f"DROPOFF ESCAPE | travelled={distance:.2f} / {distance_m:.2f} m")
@@ -343,6 +378,12 @@ class DockingNode(Node):
         self.get_logger().info(f"PICKUP NUDGE | {distance_m:.2f} m (odom)")
 
         while rclpy.ok() and time.monotonic() < deadline:
+            held = self._wait_mission_hold(goal_handle)
+            if held is None:
+                return False
+            deadline += held
+            if held:
+                last_t = time.monotonic()
             if goal_handle.is_cancel_requested:
                 self.stop_robot()
                 return False
@@ -366,7 +407,7 @@ class DockingNode(Node):
 
             cmd = Twist()
             cmd.linear.x = speed
-            self.cmd_pub.publish(cmd)
+            self._publish_motion(cmd)
             time.sleep(0.05)
 
         self.stop_robot()
@@ -406,6 +447,10 @@ class DockingNode(Node):
         try:
             self.set_line_follow_active(True)
             while rclpy.ok():
+                held = self._wait_mission_hold(goal_handle)
+                if held is None:
+                    return False, "cancelled during mission hold"
+                start_time += held
                 if goal_handle.is_cancel_requested:
                     self.stop_robot()
                     return False, "cancelled"
@@ -499,7 +544,7 @@ class DockingNode(Node):
                     cmd.linear.x = 0.0
                     cmd.angular.z = 0.0
 
-                self.cmd_pub.publish(cmd)
+                self._publish_motion(cmd)
 
                 if now - last_log >= 1.0:
                     self.get_logger().info(
@@ -542,6 +587,12 @@ class DockingNode(Node):
 
         try:
             while rclpy.ok():
+                held = self._wait_mission_hold(goal_handle)
+                if held is None:
+                    return False, "cancelled during mission hold"
+                start_time += held
+                if held:
+                    last_t = time.monotonic()
                 if goal_handle.is_cancel_requested:
                     self.stop_robot()
                     return False, "cancelled"
@@ -584,7 +635,7 @@ class DockingNode(Node):
 
                 cmd = Twist()
                 cmd.angular.z = turn_speed
-                self.cmd_pub.publish(cmd)
+                self._publish_motion(cmd)
 
                 if turned_deg - last_log_deg >= 10.0:
                     self.get_logger().info(
@@ -630,6 +681,10 @@ class DockingNode(Node):
         try:
             self.set_line_follow_active(True)
             while rclpy.ok():
+                held = self._wait_mission_hold(goal_handle)
+                if held is None:
+                    return False, "cancelled during mission hold"
+                start_time += held
                 if goal_handle.is_cancel_requested:
                     return False, "cancelled"
 
@@ -740,7 +795,7 @@ class DockingNode(Node):
                 else:
                     cmd.linear.x = 0.0
                     cmd.angular.z = 0.0
-                self.cmd_pub.publish(cmd)
+                self._publish_motion(cmd)
 
                 time.sleep(0.05)
 
